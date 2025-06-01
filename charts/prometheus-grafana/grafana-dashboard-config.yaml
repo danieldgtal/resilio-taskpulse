@@ -1,0 +1,89 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: taskpulse-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  taskpulse.json: |
+    {
+      "id": null,
+      "title": "Taskpulse API Monitoring",
+      "timezone": "browser",
+      "schemaVersion": 26,
+      "version": 1,
+      "refresh": "10s",
+      "panels": [
+        {
+          "type": "stat",
+          "title": "Request Rate",
+          "gridPos": { "x": 0, "y": 0, "w": 6, "h": 3 },
+          "targets": [
+            {
+              "expr": "rate(http_requests_total{job=\"taskpulse-api\"}[1m])",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "type": "stat",
+          "title": "HTTP 5xx Errors",
+          "gridPos": { "x": 6, "y": 0, "w": 6, "h": 3 },
+          "targets": [
+            {
+              "expr": "sum(rate(http_requests_total{job=\"taskpulse-api\", status=~\"5..\"}[1m]))",
+              "refId": "B"
+            }
+          ]
+        },
+        {
+          "type": "graph",
+          "title": "Response Time (p95)",
+          "gridPos": { "x": 0, "y": 3, "w": 12, "h": 5 },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=\"taskpulse-api\"}[5m])) by (le))",
+              "refId": "C"
+            }
+          ],
+          "yaxes": [
+            { "format": "s", "label": "seconds", "logBase": 1, "min": null },
+            { "format": "short", "label": null }
+          ]
+        },
+        {
+          "type": "graph",
+          "title": "Request Duration Histogram",
+          "gridPos": { "x": 0, "y": 8, "w": 12, "h": 5 },
+          "targets": [
+            {
+              "expr": "rate(http_request_duration_seconds_bucket{job=\"taskpulse-api\"}[5m])",
+              "refId": "D"
+            }
+          ]
+        },
+        {
+          "type": "stat",
+          "title": "Container CPU Usage",
+          "gridPos": { "x": 0, "y": 13, "w": 6, "h": 3 },
+          "targets": [
+            {
+              "expr": "rate(container_cpu_usage_seconds_total{container!=\"\", pod=~\"taskpulse.*\"}[1m])",
+              "refId": "E"
+            }
+          ]
+        },
+        {
+          "type": "stat",
+          "title": "Container Memory Usage",
+          "gridPos": { "x": 6, "y": 13, "w": 6, "h": 3 },
+          "targets": [
+            {
+              "expr": "container_memory_usage_bytes{container!=\"\", pod=~\"taskpulse.*\"}",
+              "refId": "F"
+            }
+          ]
+        }
+      ]
+    }

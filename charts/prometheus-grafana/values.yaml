@@ -1,0 +1,22 @@
+grafana:
+  enabled: true
+  adminUser: admin
+  adminPassword: prom-operator
+  service:
+    type: LoadBalancer
+
+prometheus:
+  prometheusSpec:
+    serviceMonitorSelectorNilUsesHelmValues: false
+
+serviceMonitors:
+  - name: taskpulse-app
+    selector:
+      matchLabels:
+        app: taskpulse
+    endpoints:
+      - port: http
+        interval: 15s
+    namespaceSelector:
+      matchNames:
+        - default
