@@ -68,3 +68,8 @@
 - Internal networking to Cloud SQL via IP allow
 - Metrics available via Prometheus/Grafana
 
+## Instruction 
+### Designer Instructions (Tell Them This)
+"Please trace this architecture using GCP icons in Draw.io. Include GKE, Cloud SQL, Pub/Sub, GitHub Actions CI/CD flow, and Monitoring stack with Prometheus + Grafana. Reference ports (80 → 8000), show connections between components, and label all arrows and infrastructure as per the diagram. You can pull details from my repo (k8s/, .github/workflows/, and charts/)."
+
+Possible prompt: Would you like me to generate a Draw.io diagram file (XML) or PNG preview from this sketch as well, or do you want to leave that to the designer entirely?
