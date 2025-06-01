@@ -1,0 +1,76 @@
+graph TD
+    %% User Interaction
+    subgraph User Access
+        USR[End Users]
+    end
+
+    %% CI/CD Pipeline
+    subgraph CI/CD Pipeline (GitHub Actions)
+        GH_REPO[GitHub Repository] --> GHA(GitHub Actions Workflow);
+        GHA -- 1. Build Docker Image --> GCR[Google Container Registry];
+        GHA -- 2. Push Image --> GCR;
+        GHA -- 3. Apply K8s Manifests --> GKE_CLUSTER;
+        GHA -- 4. Install Helm Charts --> GKE_CLUSTER;
+        style GHA fill:#e0ffe0,stroke:#333,stroke-width:2px;
+        style GCR fill:#c2e0ff,stroke:#333,stroke-width:2px;
+        note left of GHA: **Workflow Steps:**<br>- Lint, Test, Build<br>- Authenticate to GCP<br>- Deploy K8s & Helm
+    end
+
+    %% Google Cloud Platform
+    subgraph Google Cloud Platform (GCP)
+        direction LR
+
+        subgraph GKE Cluster (Kubernetes)
+            GKE_CLUSTER[GKE Cluster]
+            LB(LoadBalancer Service<br>taskpulse-api:80)
+            APP_PODS(TaskPulse API Pods<br>Python Microservice<br>Port 8000 /metrics)
+            MON_STACK(Monitoring Stack<br>Prometheus, Grafana, Alertmanager)
+
+            LB -- Routes external traffic --> APP_PODS;
+            APP_PODS -- Exposes metrics --> MON_STACK;
+            MON_STACK -- Provides dashboards --> USR;
+            MON_STACK -- Sends alerts --> ALRT[Slack / Email];
+            APP_PODS -- Connects to --> CLOUD_SQL;
+            style GKE_CLUSTER fill:#f0f8ff,stroke:#333,stroke-width:2px;
+            style LB fill:#d3eafc,stroke:#333,stroke-width:2px;
+            style APP_PODS fill:#fffacd,stroke:#333,stroke-width:2px;
+            style MON_STACK fill:#e6e6fa,stroke:#333,stroke-width:2px;
+            style ALRT fill:#ffcccb,stroke:#333,stroke-width:2px;
+        end
+
+        CLOUD_SQL[Cloud SQL<br>PostgreSQL Instance]
+        PUBSUB[Google Pub/Sub<br>Topic & Subscription]
+
+        style CLOUD_SQL fill:#ffe0b2,stroke:#333,stroke-width:2px;
+        style PUBSUB fill:#e0b2ff,stroke:#333,stroke-width:2px;
+    end
+
+    %% Infrastructure Provisioning
+    TF(Terraform) -- Provisions GCP Resources --> GKE_CLUSTER;
+    TF -- Provisions GCP Resources --> CLOUD_SQL;
+    TF -- Provisions GCP Resources --> PUBSUB;
+    TF -- Manages IAM, Networking --> GCP;
+    note right of TF: Infrastructure as Code<br>(GKE, Cloud SQL, Pub/Sub, IAM, VPC)
+
+    %% Main Data Flows
+    USR --> LB;
+    GHA --> GKE_CLUSTER;
+
+    %% Observability Flow Details
+    MON_STACK -- Scrapes targets via ServiceMonitor --> APP_PODS;
+    MON_STACK -- Visualizes data --> Grafana;
+    MON_STACK -- Routes alerts --> Alertmanager;
+
+    %% Annotations
+    note right of PUBSUB: Deployed for Proof-of-Concept<br>(Not actively integrated with TaskPulse API)
+
+    %% Connections
+    GHA -- Authenticates via Workload Identity Federation --> GCP;
+    TF -- Authenticates via Service Account --> GCP;
+
+    classDef component fill:#f0f0f0,stroke:#333,stroke-width:2px;
+    classDef cloudservice fill:#c2e0ff,stroke:#333,stroke-width:2px;
+    classDef process fill:#dfffd0,stroke:#333,stroke-width:2px;
+    class USR,ALRT component;
+    class GHA process;
+    class GCR,CLOUD_SQL,PUBSUB cloudservice;

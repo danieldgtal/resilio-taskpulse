@@ -1,4 +1,77 @@
-credentials/
+# ---------------------------------------------------
+# Sensitive Files & Directories (Crucial!)
+# Never commit these to Git.
+# ---------------------------------------------------
+
+# Explicitly ignore any 'credentials' directory, wherever it might be.
+# This prevents accidental commits of sensitive data like API keys,
+# service account files, or other secret configurations.
 **/credentials/
-credentials/
-**/credentials/
+
+# Terraform sensitive files
+# Terraform variable files (e.g., terraform.tfvars, dev.tfvars) contain sensitive data.
+*.tfvars
+# Terraform state files track your deployed infrastructure's exact state.
+# These should always be managed by a remote backend (like GCS) and never committed.
+*.tfstate
+*.tfstate.backup
+# Terraform RC file contains user-specific configurations, not project-specific.
+.terraformrc
+
+# Kubernetes sensitive files
+# Kubeconfig files contain credentials to access your Kubernetes clusters.
+# You typically generate these locally or use service accounts in CI/CD.
+kubeconfig
+*.kubeconfig
+# Any specific files you create that might contain sensitive Kubernetes secrets
+# (e.g., if you export a secret directly to a file for local use).
+secrets.yaml
+*.secret.yaml
+
+# ---------------------------------------------------
+# Generated / Temporary Files & Directories
+# These are typically regenerated during development or CI/CD and
+# should not be committed to Git.
+# ---------------------------------------------------
+
+# Terraform Core Files:
+# The .terraform directory contains downloaded provider binaries and modules.
+# These are large and should be fetched by `terraform init`, not committed.
+.terraform/
+# The .terraform.lock.hcl file tracks exact provider versions.
+# While it ensures consistent builds and is often committed,
+# some prefer to ignore it if provider consistency is managed otherwise.
+# For most projects, especially CI/CD, you generally WANT to commit this for consistency.
+# I'm keeping it as a comment here, as your original included it, but be mindful of its purpose.
+# .terraform.lock.hcl
+
+# Operating System / Editor generated files:
+.DS_Store # macOS generated files
+Thumbs.db # Windows generated thumbnails
+*.log
+*.tmp
+*.bak
+*.swp    # Vim swap files
+*.swo    # Vim swap files
+.vscode/ # VS Code workspace settings (unless explicitly shared)
+.idea/   # IntelliJ/PyCharm IDE files
+
+# Python specific generated files:
+__pycache__/
+.pytest_cache/
+.venv/   # Python virtual environment directory
+env/     # Another common virtual environment name
+venv/    # Another common virtual environment name
+*.egg-info/
+.mypy_cache/ # Mypy type checker cache
+
+# ---------------------------------------------------
+# Explicitly Tracked Files (Un-ignore Rules)
+# Use '!' to ensure a file is included, even if a broader rule might ignore it.
+# ---------------------------------------------------
+
+# Your diagram files should definitely be tracked as they are part of your documentation.
+# This ensures they are included even if a broader rule (e.g., ignoring all .mermaid files)
+# were accidentally added later.
+!docs/diagram.md
+!docs/diagram_mermaid.mermaid
