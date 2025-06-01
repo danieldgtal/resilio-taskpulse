@@ -1,4 +1,12 @@
-# 🧠 Taskpulse Microservice Architecture - GCP Kubernetes Deployment
+# 🧠 TaskPulse Microservice Architecture - GCP Kubernetes Deployment
+
+## System Overview
+
+The TaskPulse microservice follows a modern cloud-native architecture deployed on Google Cloud Platform (GCP) using Kubernetes Engine (GKE). The system handles web traffic through a load balancer, processes requests via Python microservices, and stores data in managed PostgreSQL database.
+
+## Architecture Diagram
+
+```
 ┌──────────────────────────────────────────────┐
 │                  End Users                   │
 └─────────────────────┬────────────────────────┘
@@ -36,9 +44,9 @@
 │                                  Slack / Email │
 │                                                │
 │  ┌─────────────────────────────────────────┐ │
-│  │ Google Pub/Sub (Topic + Subscription) │ │
-│  │ (Deployed via Terraform for PoC,        │ │
-│  │  Not actively used by TaskPulse API)    │ │
+│  │ Google Pub/Sub (Topic + Subscription)  │ │
+│  │ (Deployed via Terraform for PoC,       │ │
+│  │  Not actively used by TaskPulse API)   │ │
 │  └─────────────────────────────────────────┘ │
 └───────────────────────────▲──────────────────┘
                             │ Provisioned & Managed By
@@ -67,18 +75,42 @@
 │ │ - Install Monitoring Helm Charts (Helm)  │ │
 │ └──────────────────────────────────────────┘ │
 └──────────────────────────────────────────────┘
-           └────────────────────────────┘
+```
 
+## Components Overview
 
-# 🛠 Infrastructure (Provisioned via Terraform)
-- GKE Cluster
-- Cloud SQL (PostgreSQL)
-- Pub/Sub (topic + subscription)
-- IAM Roles, Secrets
-- VPC Networking
+### Application Layer
+- **TaskPulse API Pods**: Python microservice running on port 8000
+- **Docker Images**: Stored in Google Container Registry (GCR)
+- **Load Balancer**: GKE external IP service on port 80
+- **Metrics Endpoint**: `/metrics` for Prometheus monitoring
 
-# 🔁 CI/CD Pipeline (GitHub Actions)
+### Data Layer
+- **Cloud SQL**: Managed PostgreSQL database service
+- **Google Pub/Sub**: Message queue (deployed for PoC, not actively used)
 
+### Monitoring & Observability
+- **Prometheus**: Metrics collection and storage
+- **Grafana**: Visualization and dashboards
+- **Alertmanager**: Alert routing and management
+- **Notifications**: Slack and email alerts
+
+## 🛠 Infrastructure (Provisioned via Terraform)
+
+The entire infrastructure is managed as code using Terraform, including:
+
+- **GKE Cluster**: Kubernetes cluster for container orchestration
+- **Cloud SQL (PostgreSQL)**: Managed database service
+- **Pub/Sub**: Topic and subscription for messaging
+- **IAM Roles**: Service accounts and permissions
+- **Secrets Management**: Secure storage of sensitive data
+- **VPC Networking**: Network isolation and security
+
+## 🔁 CI/CD Pipeline (GitHub Actions)
+
+### Workflow Overview
+
+```
 ┌────────────────────────────────────────────┐
 │ GitHub Repository                          │
 │ ┌────────────────────────────────────────┐ │
@@ -90,14 +122,60 @@
 │ │ ─ Installs Helm charts (monitoring)    │ │
 │ └────────────────────────────────────────┘ │
 └────────────────────────────────────────────┘
+```
 
-# 🔐 Secrets & Configs
-- K8s Secret: taskpulse-secret (DB_USER, DB_PASSWORD)
-- K8s ConfigMaps (if needed)
-- Terraform output values passed to GitHub Actions
+### Pipeline Steps
 
-# 🔄 Networking & Observability
-- Ingress via LoadBalancer (GKE external IP)
-- Internal networking to Cloud SQL via IP allow
-- Metrics available via Prometheus/Grafana
+1. **Trigger**: Automated on push to `main` or `dev` branches
+2. **Build**: Creates Docker image from source code
+3. **Push**: Uploads image to Google Container Registry
+4. **Authenticate**: Uses Workload Identity for GCP access
+5. **Deploy**: Applies Kubernetes manifests using kubectl
+6. **Monitor**: Installs monitoring stack via Helm charts
 
+## 🔐 Security & Configuration
+
+### Secrets Management
+- **Kubernetes Secrets**: `taskpulse-secret` containing database credentials
+  - `DB_USER`: Database username
+  - `DB_PASSWORD`: Database password
+- **ConfigMaps**: Application configuration (as needed)
+- **Terraform Outputs**: Infrastructure values passed to GitHub Actions
+
+### Environment Variables
+- `DB_HOST`: Cloud SQL instance connection string
+- `DB_USER`: Database user (from Kubernetes secret)
+- `DB_PASSWORD`: Database password (from Kubernetes secret)
+
+## 🔄 Networking & Observability
+
+### Network Architecture
+- **External Access**: LoadBalancer service with GKE external IP
+- **Internal Communication**: Pod-to-pod communication within cluster
+- **Database Access**: Secure connection to Cloud SQL via IP allowlisting
+- **VPC Isolation**: Network segmentation for security
+
+### Monitoring Setup
+- **Metrics Collection**: Prometheus scrapes `/metrics` endpoint
+- **Visualization**: Grafana dashboards for system monitoring
+- **Alerting**: Automated alerts via Slack and email
+- **Health Checks**: Kubernetes liveness and readiness probes
+
+## Deployment Flow
+
+1. **Code Changes**: Developers push code to GitHub repository
+2. **CI Trigger**: GitHub Actions workflow automatically starts
+3. **Image Build**: Docker image built and pushed to GCR
+4. **Infrastructure**: Terraform manages underlying GCP resources
+5. **Deployment**: Kubernetes manifests applied to GKE cluster
+6. **Monitoring**: Observability stack monitors application health
+7. **Alerts**: Notifications sent for any issues or anomalies
+
+## Key Benefits
+
+- **Scalability**: Kubernetes provides automatic scaling capabilities
+- **Reliability**: Managed services reduce operational overhead
+- **Security**: IAM roles and secrets management ensure secure access
+- **Observability**: Comprehensive monitoring and alerting
+- **Automation**: Fully automated CI/CD pipeline
+- **Infrastructure as Code**: Reproducible and version-controlled infrastructure
