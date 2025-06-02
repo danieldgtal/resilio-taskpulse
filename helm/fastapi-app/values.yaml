@@ -15,23 +15,7 @@ service:
   targetPort: 8000 # The port your FastAPI app listens on inside the container
   metricsPort: 8000 # The port exposed by the service for metrics (can be same as targetPort)
 
-db:
-  host: "104.154.59.20" # Your DB host
-  port: "5432" # Your DB port
-  name: "taskpulse" # Your DB name
-
-secret:
-  # IMPORTANT SECURITY NOTE:
-  # It is HIGHLY RECOMMENDED to manage sensitive secrets like these
-  # using more secure methods (e.g., Kubernetes External Secrets, Helm Secrets,
-  # or injecting them from a secure vault at runtime in CI/CD)
-  # instead of hardcoding them or putting them directly in version control.
-  # dbUser: "" moved to github secrets
-  # dbPassword: "" moved to github secrets
-
-pubsub:
-  topic: "taskpulse-topic"
-  subscription: "taskpulse-subscription"
+# db: and pubsub: sections removed as they are always set via --set in CI/CD
 
 # For ServiceMonitor:
 # If your Prometheus Operator has specific label selectors for ServiceMonitors,
