@@ -154,8 +154,8 @@ jobs:
           
     - name: Verify deployment
       run: |
-        kubectl get pods -l app=fastapi-app
-        kubectl wait --for=condition=ready pod -l app=fastapi-app --timeout=300s
+        kubectl get pods -l app.kubernetes.io/name=fastapi-app 
+        kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=fastapi-app --timeout=300s 
 
   # Stage 4: Deploy Monitoring Stack
   deploy-monitoring:
