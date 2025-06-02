@@ -122,7 +122,7 @@ jobs:
       
     - name: Get GKE credentials
       run: |
-        gcloud container clusters get-credentials ${{ secrets.GKE_CLUSTER_NAME }} --region ${{ secrets.GKE_REGION }} --project ${{ secrets.PROJECT_ID }}
+        gcloud container clusters get-credentials ${{ secrets.GKE_CLUSTER_NAME }} --region ${{ secrets.GKE_REGION }} --project ${{ secrets.GCP_PROJECT_ID }}
         
     - name: Setup Helm
       uses: azure/setup-helm@v3
@@ -172,7 +172,7 @@ jobs:
       
     - name: Get GKE credentials
       run: |
-        gcloud container clusters get-credentials ${{ secrets.GKE_CLUSTER_NAME }} --region ${{ secrets.GKE_REGION }} --project ${{ secrets.PROJECT_ID }}
+        gcloud container clusters get-credentials ${{ secrets.GKE_CLUSTER_NAME }} --region ${{ secrets.GKE_REGION }} --project ${{ secrets.GCP_PROJECT_ID }}
         
     - name: Setup Helm
       uses: azure/setup-helm@v3
