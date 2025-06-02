@@ -138,7 +138,7 @@ jobs:
       run: |
         helm upgrade --install fastapi-app ./helm/fastapi-app \
           --set image.repository="${REGISTRY}/${PROJECT_ID}/${IMAGE_NAME}" \
-          --set image.tag="${needs.build-push.outputs.image-tag}" \
+          --set image.tag="${{ needs.build-push.outputs.image-tag }}" \
           --set image.pullPolicy=Always \
           --set service.type=LoadBalancer \
           --set service.port=80 \
