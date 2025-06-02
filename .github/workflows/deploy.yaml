@@ -15,9 +15,7 @@ env:
   REGISTRY: gcr.io
   DB_USER_SECRET: ${{ secrets.DB_USER_SECRET }}
   DB_PASSWORD_SECRET: ${{ secrets.DB_PASSWORD_SECRET }}
-  IMAGE_TAG: ${{ github.sha | slice 0 8 }}
-  # GKE_CLUSTER: ${{ secrets.GKE_CLUSTER_NAME }}
-  # GKE_ZONE: ${{ secrets.GKE_REGION }}
+
   
 
 jobs:
