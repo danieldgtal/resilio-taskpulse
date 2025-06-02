@@ -146,10 +146,8 @@ jobs:
           --set db.host=104.154.59.20 \
           --set db.port=5432 \
           --set db.name=taskpulse \
-          --set pubsub.topic=taskpulse-topic \
-          --set pubsub.subscription=taskpulse-subscription \
-          --set-string secret.dbUser=${{ secrets.DB_USER_SECRET }} \
-          --set-string secret.dbPassword=${{ secrets.DB_PASSWORD_SECRET }} \
+          --set-string secret.dbUser="${{ secrets.DB_USER_SECRET }}" \
+          --set-string secret.dbPassword="${{ secrets.DB_PASSWORD_SECRET }}" \
           --namespace default \
           --wait --timeout=300s
           
