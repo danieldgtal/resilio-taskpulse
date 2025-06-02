@@ -13,6 +13,8 @@ env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   IMAGE_NAME: fastapi-app
   REGISTRY: gcr.io
+  DB_USER_SECRET: ${{ secrets.DB_USER_SECRET }}
+  DB_PASSWORD_SECRET: ${{ secrets.DB_PASSWORD_SECRET }}
   # GKE_CLUSTER: ${{ secrets.GKE_CLUSTER_NAME }}
   # GKE_ZONE: ${{ secrets.GKE_REGION }}
   
@@ -136,8 +138,8 @@ jobs:
     - name: Deploy or upgrade the FastAPI app
       run: |
         helm upgrade --install fastapi-app ./helm/fastapi-app \
-          --set image.repository=$REGISTRY/$PROJECT_ID/$IMAGE_NAME \
-          --set image.tag=$IMAGE_TAG \
+          --set image.repository="${REGISTRY}/${PROJECT_ID}/${IMAGE_NAME}" \
+          --set image.tag="${IMAGE_TAG}" \
           --set image.pullPolicy=Always \
           --set service.type=LoadBalancer \
           --set service.port=80 \
@@ -146,8 +148,8 @@ jobs:
           --set db.host=104.154.59.20 \
           --set db.port=5432 \
           --set db.name=taskpulse \
-          --set-string secret.dbUser="${{ secrets.DB_USER_SECRET }}" \
-          --set-string secret.dbPassword="${{ secrets.DB_PASSWORD_SECRET }}" \
+          --set-string secret.dbUser="${DB_USER_SECRET}" \
+          --set-string secret.dbPassword="${DB_PASSWORD_SECRET}" \
           --namespace default \
           --wait --timeout=300s
           

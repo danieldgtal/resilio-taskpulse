@@ -1,17 +1,17 @@
-# helm/fastapi/templates/service.yaml
+# helm/fastapi-app/templates/service.yaml
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "fastapi.fullname" . }} # Consistent naming with Deployment
+  name: {{ include "fastapi-app.fullname" . }} # Consistent naming with Deployment
   labels:
-    app.kubernetes.io/name: {{ include "fastapi.name" . }}
+    app.kubernetes.io/name: {{ include "fastapi-app.name" . }}
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/version: {{ .Chart.AppVersion }}
     app.kubernetes.io/managed-by: {{ .Release.Service }}
 spec:
   type: {{ .Values.service.type }} # Configurable via values.yaml
   selector:
-    app.kubernetes.io/name: {{ include "fastapi.name" . }} # Matches templated labels from Deployment
+    app.kubernetes.io/name: {{ include "fastapi-app.name" . }} # Matches templated labels from Deployment
     app.kubernetes.io/instance: {{ .Release.Name }}
   ports:
     - name: http
