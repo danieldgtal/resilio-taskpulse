@@ -15,9 +15,7 @@ env:
   REGISTRY: gcr.io
   DB_USER_SECRET: ${{ secrets.DB_USER_SECRET }}
   DB_PASSWORD_SECRET: ${{ secrets.DB_PASSWORD_SECRET }}
-  IMAGE_TAG: ${{ github.sha | slice 0 8 }}
-  # GKE_CLUSTER: ${{ secrets.GKE_CLUSTER_NAME }}
-  # GKE_ZONE: ${{ secrets.GKE_REGION }}
+
   
 
 jobs:
@@ -140,7 +138,7 @@ jobs:
       run: |
         helm upgrade --install fastapi-app ./helm/fastapi-app \
           --set image.repository="${REGISTRY}/${PROJECT_ID}/${IMAGE_NAME}" \
-          --set image.tag="${IMAGE_TAG}" \
+          --set image.tag="${needs.build-push.outputs.image-tag}" \
           --set image.pullPolicy=Always \
           --set service.type=LoadBalancer \
           --set service.port=80 \
