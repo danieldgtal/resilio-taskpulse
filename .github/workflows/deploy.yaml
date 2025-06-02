@@ -151,11 +151,21 @@ jobs:
           --set-string secret.dbPassword="${DB_PASSWORD_SECRET}" \
           --namespace default \
           --wait --timeout=300s
-          
+
     - name: Verify deployment
       run: |
-        kubectl get pods -l app.kubernetes.io/name=fastapi-app 
-        kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=fastapi-app --timeout=300s 
+        echo "Deleting completed pods if any..."
+        kubectl delete pod -l app.kubernetes.io/name=fastapi-app --field-selector=status.phase=Succeeded || true
+        
+        echo "Listing current pods..."
+        kubectl get pods -l app.kubernetes.io/name=fastapi-app
+
+        echo "Waiting for running pods to become ready..."
+        kubectl wait --for=condition=ready pod \
+          -l app.kubernetes.io/name=fastapi-app \
+          --field-selector=status.phase=Running \
+          --timeout=300s
+
 
   # Stage 4: Deploy Monitoring Stack
   deploy-monitoring:
