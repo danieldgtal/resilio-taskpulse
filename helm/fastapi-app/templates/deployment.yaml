@@ -46,7 +46,3 @@ spec:
                 secretKeyRef:
                   name: taskpulse-secret # This assumes your secret is already created.  Templating the secret itself is more complex.
                   key: DB_PASSWORD
-            - name: PUBSUB_TOPIC
-              value: "{{ .Values.pubsub.topic }}"
-            - name: PUBSUB_SUBSCRIPTION
-              value: "{{ .Values.pubsub.subscription }}"
