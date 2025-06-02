@@ -1,19 +1,24 @@
+# helm/fastapi/templates/service.yaml
 apiVersion: v1
 kind: Service
 metadata:
-  name: taskpulse-api
+  name: {{ include "fastapi.fullname" . }} # Consistent naming with Deployment
   labels:
-    app: taskpulse
+    app.kubernetes.io/name: {{ include "fastapi.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
 spec:
-  type: LoadBalancer
+  type: {{ .Values.service.type }} # Configurable via values.yaml
   selector:
-    app: taskpulse
+    app.kubernetes.io/name: {{ include "fastapi.name" . }} # Matches templated labels from Deployment
+    app.kubernetes.io/instance: {{ .Release.Name }}
   ports:
     - name: http
       protocol: TCP
-      port: 80
-      targetPort: 8000
-    - name: metrics
+      port: {{ .Values.service.port }} # Configurable via values.yaml
+      targetPort: {{ .Values.service.targetPort }} # Configurable via values.yaml
+    - name: metrics # Separate port for metrics, configurable
       protocol: TCP
-      port: 8000
-      targetPort: 8000
+      port: {{ .Values.service.metricsPort }} # New value for metrics port
+      targetPort: {{ .Values.service.targetPort }} # Assumes metrics are on the same targetPort as HTTP

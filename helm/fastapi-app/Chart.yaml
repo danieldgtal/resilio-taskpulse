@@ -1,0 +1,7 @@
+# helm/fastapi/Chart.yaml
+apiVersion: v2 # Required for Helm 3 charts
+name: fastapi-app # The name of your chart, usually matches the folder name
+description: A Helm chart for deploying the FastAPI application
+version: 0.1.0 # The chart version (you can increment this for chart changes)
+appVersion: "1.0.0" # The version of your FastAPI application (matches your code version)
+type: application # Indicates this is an application chart

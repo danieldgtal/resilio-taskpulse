@@ -1,0 +1,41 @@
+# helm/fastapi/values.yaml
+# Default values for fastapi-app.
+# This is a YAML-formatted file.
+
+replicaCount: 2 # Default replica count
+
+image:
+  repository: gcr.io/gcp-learn-102/sresync # Default image repository
+  tag: v1.0 # Default image tag (will be overridden by IMAGE_TAG in CI/CD)
+  pullPolicy: IfNotPresent # Default pull policy
+
+service:
+  type: LoadBalancer # Default service type (matches your original config)
+  port: 80 # Default service HTTP port
+  targetPort: 8000 # The port your FastAPI app listens on inside the container
+  metricsPort: 8000 # The port exposed by the service for metrics (can be same as targetPort)
+
+db:
+  host: "104.154.59.20" # Your DB host
+  port: "5432" # Your DB port
+  name: "taskpulse" # Your DB name
+
+secret:
+  # IMPORTANT SECURITY NOTE:
+  # It is HIGHLY RECOMMENDED to manage sensitive secrets like these
+  # using more secure methods (e.g., Kubernetes External Secrets, Helm Secrets,
+  # or injecting them from a secure vault at runtime in CI/CD)
+  # instead of hardcoding them or putting them directly in version control.
+  # dbUser: "" moved to github secrets
+  # dbPassword: "" moved to github secrets
+
+pubsub:
+  topic: "taskpulse-topic"
+  subscription: "taskpulse-subscription"
+
+# For ServiceMonitor:
+# If your Prometheus Operator has specific label selectors for ServiceMonitors,
+# you might need to adjust the 'release' label in servicemonitor.yaml.
+# By default, kube-prometheus-stack looks for ServiceMonitors with 'release: <your-helm-release-name>'
+# where <your-helm-release-name> is 'monitoring' if you followed common practices.
+# No direct values needed here unless you want to make the ServiceMonitor 'release' label dynamic.
