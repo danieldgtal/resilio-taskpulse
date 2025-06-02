@@ -80,23 +80,25 @@ jobs:
       
     - name: Build and push Docker image
       id: build
+      
+      working-directory: ./app
       run: |
         IMAGE_TAG="${GITHUB_SHA::8}"
         IMAGE_URI="${REGISTRY}/${PROJECT_ID}/${IMAGE_NAME}:${IMAGE_TAG}"
         
-        # Build image
-        docker build -t $IMAGE_URI .
+        # Build image - '.' now correctly refers to the 'app' directory
+        docker build -t "$IMAGE_URI" .
         
         # Push image
-        docker push $IMAGE_URI
+        docker push "$IMAGE_URI"
         
         # Also tag as latest for main branch
         if [ "$GITHUB_REF" = "refs/heads/main" ]; then
-          docker tag $IMAGE_URI ${REGISTRY}/${PROJECT_ID}/${IMAGE_NAME}:latest
-          docker push ${REGISTRY}/${PROJECT_ID}/${IMAGE_NAME}:latest
+          docker tag "$IMAGE_URI" "${REGISTRY}/${PROJECT_ID}/${IMAGE_NAME}:latest"
+          docker push "${REGISTRY}/${PROJECT_ID}/${IMAGE_NAME}:latest"
         fi
         
-        echo "image-tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
+        echo "image-tag=${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
         echo "Built and pushed: $IMAGE_URI"
 
   # Stage 3: Deploy FastAPI Application
