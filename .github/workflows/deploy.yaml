@@ -81,6 +81,7 @@ jobs:
     - name: Build and push Docker image
       id: build
       
+      # Ensure we are in the correct directory for Docker build context
       working-directory: ./app
       run: |
         IMAGE_TAG="${GITHUB_SHA::8}"
