@@ -119,6 +119,9 @@ jobs:
         
     - name: Setup gcloud CLI
       uses: google-github-actions/setup-gcloud@v2
+
+    - name: Install gke-gcloud-auth-plugin 
+      run: gcloud components install gke-gcloud-auth-plugin
       
     - name: Get GKE credentials
       run: |

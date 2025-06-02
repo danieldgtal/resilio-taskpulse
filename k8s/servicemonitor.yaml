@@ -1,18 +1,27 @@
+# helm/fastapi/templates/servicemonitor.yaml
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: taskpulse-monitor
-  namespace: monitoring
+  name: {{ include "fastapi.fullname" . }}-monitor # Consistent naming for the monitor
+  namespace: monitoring # ServiceMonitors typically live in the Prometheus namespace
   labels:
-    release: monitoring  
+    app.kubernetes.io/name: {{ include "fastapi.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    # This label is crucial! Prometheus Operator typically looks for ServiceMonitors
+    # with a 'release' label matching its own Helm release name (which is 'monitoring'
+    # if you used 'helm upgrade --install monitoring ...' for kube-prometheus-stack).
+    release: monitoring # <-- IMPORTANT: Ensure this matches your Prometheus Operator's selection criteria
 spec:
   selector:
     matchLabels:
-      app: taskpulse
+      app.kubernetes.io/name: {{ include "fastapi.name" . }} # Matches templated labels from your Service
+      app.kubernetes.io/instance: {{ .Release.Name }} # Matches templated labels from your Service
   namespaceSelector:
     matchNames:
-      - default
+      - {{ .Release.Namespace }} # Automatically use the namespace where your app is deployed (e.g., 'default')
   endpoints:
-    - port: http
-      path: /metrics
-      interval: 15s
+    - port: metrics # This refers to the 'name' of the port in your Service YAML (the one for metrics)
+      path: /metrics # The endpoint path where your FastAPI app exposes metrics
+      interval: 15s # How often Prometheus should scrape metrics
