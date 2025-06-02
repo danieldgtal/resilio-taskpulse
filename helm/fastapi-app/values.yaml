@@ -26,8 +26,8 @@ secret:
   # using more secure methods (e.g., Kubernetes External Secrets, Helm Secrets,
   # or injecting them from a secure vault at runtime in CI/CD)
   # instead of hardcoding them or putting them directly in version control.
-  dbUser: "taskpulse_user"
-  dbPassword: "taskpulse_@!`(-^)"
+  # dbUser: "" moved to github secrets
+  # dbPassword: "" moved to github secrets
 
 pubsub:
   topic: "taskpulse-topic"

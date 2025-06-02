@@ -11,10 +11,11 @@ on:
 
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-  GKE_CLUSTER: ${{ secrets.GKE_CLUSTER_NAME }}
-  GKE_ZONE: ${{ secrets.GKE_REGION }}
   IMAGE_NAME: fastapi-app
   REGISTRY: gcr.io
+  # GKE_CLUSTER: ${{ secrets.GKE_CLUSTER_NAME }}
+  # GKE_ZONE: ${{ secrets.GKE_REGION }}
+  
 
 jobs:
   # Stage 1: Infrastructure Provisioning
@@ -132,20 +133,23 @@ jobs:
       with:
         version: '3.12.0'
         
-    - name: Deploy FastAPI with Helm
+    - name: Deploy or upgrade the FastAPI app
       run: |
-        IMAGE_TAG="${{ needs.build-push.outputs.image-tag }}"
-        IMAGE_URI="${REGISTRY}/${PROJECT_ID}/${IMAGE_NAME}:${IMAGE_TAG}"
-        
-        # Add helm repos if needed
-        helm repo add bitnami https://charts.bitnami.com/bitnami
-        helm repo update
-        
-        # Deploy or upgrade the FastAPI app
-        helm upgrade --install fastapi-app ./helm/fastapi \
-          --set image.repository=${REGISTRY}/${PROJECT_ID}/${IMAGE_NAME} \
-          --set image.tag=${IMAGE_TAG} \
+        helm upgrade --install fastapi-app ./helm/fastapi-app \
+          --set image.repository=$REGISTRY/$PROJECT_ID/$IMAGE_NAME \
+          --set image.tag=$IMAGE_TAG \
           --set image.pullPolicy=Always \
+          --set service.type=LoadBalancer \
+          --set service.port=80 \
+          --set service.targetPort=8000 \
+          --set service.metricsPort=8000 \
+          --set db.host=104.154.59.20 \
+          --set db.port=5432 \
+          --set db.name=taskpulse \
+          --set pubsub.topic=taskpulse-topic \
+          --set pubsub.subscription=taskpulse-subscription \
+          --set-string secret.dbUser=${{ secrets.DB_USER_SECRET }} \
+          --set-string secret.dbPassword=${{ secrets.DB_PASSWORD_SECRET }} \
           --namespace default \
           --wait --timeout=300s
           

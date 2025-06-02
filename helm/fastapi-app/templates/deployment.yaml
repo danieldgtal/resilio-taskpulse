@@ -1,46 +1,52 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: taskpulse-api
+  name: {{ include "fastapi.fullname" . }}
   labels:
-    app: taskpulse
+    app.kubernetes.io/name: {{ include "fastapi.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
   annotations:
     prometheus.io/scrape: "true"
     prometheus.io/path: "/metrics"
     prometheus.io/port: "8000"
 spec:
-  replicas: 2
+  replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
-      app: taskpulse
+      app.kubernetes.io/name: {{ include "fastapi.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
   template:
     metadata:
       labels:
-        app: taskpulse
+        app.kubernetes.io/name: {{ include "fastapi.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
       containers:
-        - name: taskpulse-api
-          image: gcr.io/gcp-learn-102/sresync:v1.0
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - containerPort: 8000
           env:
             - name: DB_HOST
-              value: "104.154.59.20"
+              value: "{{ .Values.db.host }}"
             - name: DB_PORT
-              value: "5432"
+              value: "{{ .Values.db.port }}"
             - name: DB_NAME
-              value: "taskpulse"
+              value: "{{ .Values.db.name }}"
             - name: DB_USER
               valueFrom:
                 secretKeyRef:
-                  name: taskpulse-secret
+                  name: taskpulse-secret # This assumes your secret is already created.  Templating the secret itself is more complex.
                   key: DB_USER
             - name: DB_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: taskpulse-secret
+                  name: taskpulse-secret # This assumes your secret is already created.  Templating the secret itself is more complex.
                   key: DB_PASSWORD
             - name: PUBSUB_TOPIC
-              value: "taskpulse-topic"
+              value: "{{ .Values.pubsub.topic }}"
             - name: PUBSUB_SUBSCRIPTION
-              value: "taskpulse-subscription"
+              value: "{{ .Values.pubsub.subscription }}"
