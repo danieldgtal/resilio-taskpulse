@@ -42,6 +42,11 @@ variable "db_password" {
   sensitive   = true
 }
 
+variable "repository_id" {
+  description = "Name of the Docker image to be stored in Artifact Registry"
+  type        = string
+  default = "fastapi-app" 
+}
 variable "pubsub_topic_name" {
   description = "Name of the Pub/Sub topic"
   type        = string
