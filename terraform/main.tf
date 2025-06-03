@@ -57,3 +57,13 @@ resource "google_pubsub_subscription" "taskpulse_sub" {
   topic = google_pubsub_topic.taskpulse.name
 }
 
+# Create Artifact Registry Repository for Docker Images
+resource "google_artifact_registry_repository" "docker_repo" {
+
+  repository_id = var.repository_id         # or any name you want
+  format        = "DOCKER"
+  location      = var.region          # must be a REGION, not zone like us-central1-a
+  project       = var.project_id  # replace with your actual project ID
+
+  description = "Minimal Docker repo for FastAPI app"
+}
