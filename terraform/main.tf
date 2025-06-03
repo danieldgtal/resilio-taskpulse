@@ -36,7 +36,7 @@ resource "google_sql_database_instance" "default" {
 resource "google_sql_user" "users" {
   name     = var.db_user
   instance = google_sql_database_instance.default.name
-  password_wo = var.db_password
+  password = var.db_password
 }
 
 # Create DB
