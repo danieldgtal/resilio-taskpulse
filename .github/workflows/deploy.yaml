@@ -14,6 +14,7 @@ env:
   IMAGE_NAME: fastapi-app
   REGISTRY: us-central1-docker.pkg.dev
   REPOSITORY: fastapi-app
+  IMAGE_NAME: fastapi
   DB_USER_SECRET: ${{ secrets.DB_USER_SECRET }}
   DB_PASSWORD_SECRET: ${{ secrets.DB_PASSWORD_SECRET }}
 
@@ -75,44 +76,42 @@ jobs:
     
     outputs:
       image-tag: ${{ steps.build.outputs.image-tag }}
-      
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
+
     - name: Authenticate to Google Cloud
       uses: google-github-actions/auth@v2
       with:
         credentials_json: ${{ secrets.GCP_SA_KEY }}
-        
+
     - name: Setup gcloud CLI
       uses: google-github-actions/setup-gcloud@v2
-      
+
     - name: Configure Docker for Artifact Registry
-      run: gcloud auth configure-docker us-central1-docker.pkg.dev
-      
+      run: gcloud auth configure-docker ${{ env.REGISTRY }}
+
     - name: Build and push Docker image
       id: build
-      
       working-directory: ./app
       run: |
         IMAGE_TAG="${GITHUB_SHA::8}"
         IMAGE_URI="${REGISTRY}/${PROJECT_ID}/${REPOSITORY}/${IMAGE_NAME}:${IMAGE_TAG}"
-        
-        # Build image - '.' now correctly refers to the 'app' directory
+
+        # Build and push image
         docker build -t "$IMAGE_URI" .
-        
-        # Push image
         docker push "$IMAGE_URI"
-        
-        # Also tag as latest for main branch
+
+        # Also push latest tag if on main
         if [ "$GITHUB_REF" = "refs/heads/main" ]; then
-          docker tag "$IMAGE_URI" "${REGISTRY}/${PROJECT_ID}/${IMAGE_NAME}:latest"
-          docker push "${REGISTRY}/${PROJECT_ID}/${IMAGE_NAME}:latest"
+          docker tag "$IMAGE_URI" "${REGISTRY}/${PROJECT_ID}/${REPOSITORY}/${IMAGE_NAME}:latest"
+          docker push "${REGISTRY}/${PROJECT_ID}/${REPOSITORY}/${IMAGE_NAME}:latest"
         fi
-        
+
         echo "image-tag=${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
         echo "Built and pushed: $IMAGE_URI"
+
 
   # Stage 3: Deploy FastAPI Application
   deploy-app:
