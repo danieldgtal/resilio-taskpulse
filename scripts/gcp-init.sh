@@ -16,6 +16,13 @@ gcloud services enable \
 gcloud iam service-accounts create $SERVICE_ACCOUNT_NAME \
   --description="Service account for Terraform to manage GKE" \
   --display-name="Terraform GKE Admin"
+# Create and download the service account key
+mkdir -p credentials
+
+gcloud iam service-accounts keys create "credentials/terraform-gke-key.json" \
+  --iam-account="$SERVICE_ACCOUNT_NAME@$PROJECT_ID.iam.gserviceaccount.com"
+
+echo "\n✅ Terraform GKE Service Account created and key saved to credentials/terraform-gke-key.json"
 
 # Grant necessary IAM roles
 gcloud projects add-iam-policy-binding $PROJECT_ID \
@@ -43,17 +50,10 @@ gcloud projects add-iam-policy-binding $PROJECT_ID \
  --member="serviceAccount:$SERVICE_ACCOUNT_NAME@$PROJECT_ID.iam.gserviceaccount.com" \
  --role="roles/storage.admin"
 
-gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+gcloud projects add-iam-policy-binding $PROJECT_ID \
   --member="serviceAccount:$SERVICE_ACCOUNT_NAME@$PROJECT_ID.iam.gserviceaccount.com" \
-  --role="roles/artifactregistry.repositoryAdmin"
+  --role="roles/artifactregistry.writer"
 
-# Create and download the service account key
-mkdir -p credentials
-
-gcloud iam service-accounts keys create "credentials/terraform-gke-key.json" \
-  --iam-account="$SERVICE_ACCOUNT_NAME@$PROJECT_ID.iam.gserviceaccount.com"
-
-echo "\n✅ Terraform GKE Service Account created and key saved to credentials/terraform-gke-key.json"
 
 # Create Cloud Storage bucket for Terraform state in your desired region (e.g., us-central1)
 echo "Creating Cloud Storage bucket for Terraform state: gs://$BUCKET_NAME"
