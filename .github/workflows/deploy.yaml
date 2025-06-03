@@ -11,7 +11,6 @@ on:
 
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-  IMAGE_NAME: fastapi-app
   REGISTRY: us-central1-docker.pkg.dev
   REPOSITORY: fastapi-app
   IMAGE_NAME: fastapi
