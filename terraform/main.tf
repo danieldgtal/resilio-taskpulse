@@ -14,6 +14,8 @@ resource "google_container_cluster" "primary" {
   node_config {
     machine_type = "e2-medium"
   }
+
+  deletion_protection = false
 }
 
 # Create PostgreSQL Instance
@@ -25,6 +27,9 @@ resource "google_sql_database_instance" "default" {
   settings {
     tier = "db-f1-micro"
   }
+
+   deletion_protection = false
+
 }
 
 # Create User
@@ -52,13 +57,3 @@ resource "google_pubsub_subscription" "taskpulse_sub" {
   topic = google_pubsub_topic.taskpulse.name
 }
 
-# Enable Required Services
-# resource "google_project_service" "required_services" {
-#   for_each = toset([
-#     "container.googleapis.com",
-#     "sqladmin.googleapis.com",
-#     "pubsub.googleapis.com"
-#   ])
-#   service = each.key
-#   disable_on_destroy = false
-# }
