@@ -1,12 +1,9 @@
 # helm/fastapi/values.yaml
-# Default values for fastapi-app.
-# This is a YAML-formatted file.
-
 replicaCount: 2 # Default replica count
 
 image:
-  repository: gcr.io/gcp-learn-102/sresync # Default image repository
-  tag: v1.0 # Default image tag (will be overridden by IMAGE_TAG in CI/CD)
+  repository: us-central1-docker.pkg.dev/gcp-learn-102/fastapi-app/fastapi
+  tag: v1.0 
   pullPolicy: IfNotPresent # Default pull policy
 
 service:
@@ -14,12 +11,3 @@ service:
   port: 80 # Default service HTTP port
   targetPort: 8000 # The port your FastAPI app listens on inside the container
   metricsPort: 8000 # The port exposed by the service for metrics (can be same as targetPort)
-
-# db: and pubsub: sections removed as they are always set via --set in CI/CD
-
-# For ServiceMonitor:
-# If your Prometheus Operator has specific label selectors for ServiceMonitors,
-# you might need to adjust the 'release' label in servicemonitor.yaml.
-# By default, kube-prometheus-stack looks for ServiceMonitors with 'release: <your-helm-release-name>'
-# where <your-helm-release-name> is 'monitoring' if you followed common practices.
-# No direct values needed here unless you want to make the ServiceMonitor 'release' label dynamic.
