@@ -29,20 +29,4 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - containerPort: 8000
-          env:
-            - name: DB_HOST
-              value: "{{ .Values.db.host }}"
-            - name: DB_PORT
-              value: "{{ .Values.db.port }}"
-            - name: DB_NAME
-              value: "{{ .Values.db.name }}"
-            - name: DB_USER
-              valueFrom:
-                secretKeyRef:
-                  name: taskpulse-secret # This assumes your secret is already created.  Templating the secret itself is more complex.
-                  key: DB_USER
-            - name: DB_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: taskpulse-secret # This assumes your secret is already created.  Templating the secret itself is more complex.
-                  key: DB_PASSWORD
+        
