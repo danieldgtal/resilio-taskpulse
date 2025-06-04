@@ -29,21 +29,5 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - containerPort: 8000
-          env:
-        - name: DB_HOST
-          value: "{{ .Values.db.host }}"
-        - name: DB_PORT
-          value: "{{ .Values.db.port }}"
-        - name: DB_NAME
-          value: "{{ .Values.db.name }}"
-        - name: DB_USER
-          valueFrom:
-            secretKeyRef:
-              name: {{ include "fastapi.fullname" . }}-secret 
-              key: DB_USER
-        - name: DB_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: {{ include "fastapi.fullname" . }}-secret 
-              key: DB_PASSWORD
+        
     

@@ -152,11 +152,6 @@ jobs:
           --set service.port=80 \
           --set service.targetPort=8000 \
           --set service.metricsPort=8000 \
-          --set db.host=104.154.59.20 \
-          --set db.port=5432 \
-          --set db.name=taskpulse \
-          --set-string secret.dbUser="${DB_USER_SECRET}" \
-          --set-string secret.dbPassword="${DB_PASSWORD_SECRET}" \
           --namespace default \
           --wait --timeout=300s
 
