@@ -3,17 +3,17 @@ name: Deploy to GKE
 
 on:
   push:
-    branches: [main]  # Only trigger on merge to main
+    branches: [main]   # Only trigger on merge to main
   pull_request:
     branches: [main]
-    types: [opened, synchronize, reopened]  # Only for validation, no deployment
-  workflow_dispatch:  # Manual trigger
+    types: [opened, synchronize, reopened]   # Only for validation, no deployment
+  workflow_dispatch:   # Manual trigger
 
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   REGISTRY: us-central1-docker.pkg.dev
-  REPOSITORY: fastapi-app
-  IMAGE_NAME: fastapi
+  REPOSITORY: fastapi-app # This is your Artifact Registry repository ID (e.g., 'fastapi-app')
+  IMAGE_NAME: fastapi     # This is the name of the image *within* that repository (e.g., 'fastapi')
   DB_USER_SECRET: ${{ secrets.DB_USER_SECRET }}
   DB_PASSWORD_SECRET: ${{ secrets.DB_PASSWORD_SECRET }}
 
@@ -95,20 +95,22 @@ jobs:
       working-directory: ./app
       run: |
         IMAGE_TAG="${GITHUB_SHA::8}"
-        IMAGE_URI="${REGISTRY}/${PROJECT_ID}/${REPOSITORY}/${IMAGE_NAME}:${IMAGE_TAG}"
+        # Construct the full image URI using the global env vars
+        # Example: us-central1-docker.pkg.dev/gcp-learn-102/fastapi-app/fastapi:abcdef12
+        FULL_IMAGE_URI="${REGISTRY}/${PROJECT_ID}/${REPOSITORY}/${IMAGE_NAME}:${IMAGE_TAG}"
 
         # Build and push image
-        docker build -t "$IMAGE_URI" .
-        docker push "$IMAGE_URI"
+        docker build -t "$FULL_IMAGE_URI" .
+        docker push "$FULL_IMAGE_URI"
 
         # Also push latest tag if on main
         if [ "$GITHUB_REF" = "refs/heads/main" ]; then
-          docker tag "$IMAGE_URI" "${REGISTRY}/${PROJECT_ID}/${REPOSITORY}/${IMAGE_NAME}:latest"
+          docker tag "$FULL_IMAGE_URI" "${REGISTRY}/${PROJECT_ID}/${REPOSITORY}/${IMAGE_NAME}:latest"
           docker push "${REGISTRY}/${PROJECT_ID}/${REPOSITORY}/${IMAGE_NAME}:latest"
         fi
 
         echo "image-tag=${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
-        echo "Built and pushed: $IMAGE_URI"
+        echo "Built and pushed: $FULL_IMAGE_URI"
 
 
   # Stage 3: Deploy FastAPI Application
@@ -144,15 +146,22 @@ jobs:
         
     - name: Deploy or upgrade the FastAPI app
       run: |
+        # Get the image tag from the previous job's output
+        DEPLOY_IMAGE_TAG="${{ needs.build-push.outputs.image-tag }}"
+
+        # Construct the base repository path *without* the tag
+        # This will be: us-central1-docker.pkg.dev/<PROJECT_ID>/<REPOSITORY_ID>/<IMAGE_NAME>
+        IMAGE_REPOSITORY_BASE="${REGISTRY}/${PROJECT_ID}/${REPOSITORY}/${IMAGE_NAME}"
+
         helm upgrade --install fastapi-app ./helm/fastapi-app \
-          --set image.repository="${REGISTRY}/${PROJECT_ID}/${IMAGE_NAME}:${IMAGE_TAG}" \
-          --set image.tag="${{ needs.build-push.outputs.image-tag }}" \
+          --set image.repository="${IMAGE_REPOSITORY_BASE}" \ # <-- CORRECTED LINE
+          --set image.tag="${DEPLOY_IMAGE_TAG}" \             # <-- CORRECTED LINE (using output)
           --set image.pullPolicy=Always \
           --set service.type=LoadBalancer \
           --set service.port=80 \
           --set service.targetPort=8000 \
           --set service.metricsPort=8000 \
-          --set db.host=104.154.59.20 \
+          --set db.host=104.154.59.20 \ # Ensure this is correct for your DB
           --set db.port=5432 \
           --set db.name=taskpulse \
           --set-string secret.dbUser="${DB_USER_SECRET}" \
