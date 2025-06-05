@@ -1,13 +1,12 @@
-# .github/workflows/deploy.yml
 name: Deploy to GKE
 
 on:
   push:
-    branches: [main]  # Only trigger on merge to main
+    branches: [main]
   pull_request:
     branches: [main]
-    types: [opened, synchronize, reopened]  # Only for validation, no deployment
-  workflow_dispatch:  # Manual trigger
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
 
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
@@ -16,31 +15,26 @@ env:
   IMAGE_NAME: fastapi
   DB_USER_SECRET: ${{ secrets.DB_USER_SECRET }}
   DB_PASSWORD_SECRET: ${{ secrets.DB_PASSWORD_SECRET }}
-
+  GKE_ZONE: ${{ secrets.GKE_ZONE }}  # 🔁 CHANGED FROM GKE_REGION
 
 jobs:
-  # Stage 1: Infrastructure Provisioning
   terraform:
     name: Terraform Infrastructure
     runs-on: ubuntu-latest
     if: (contains(github.event.head_commit.message, '[infra]') || github.event_name == 'workflow_dispatch') && github.event_name != 'pull_request'
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
       
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v3
+    - uses: hashicorp/setup-terraform@v3
       with:
         terraform_version: 1.5.0
         
-    - name: Authenticate to Google Cloud
-      uses: google-github-actions/auth@v2
+    - uses: google-github-actions/auth@v2
       with:
         credentials_json: ${{ secrets.GCP_SA_KEY }}
         
-    - name: Setup gcloud CLI
-      uses: google-github-actions/setup-gcloud@v2
+    - uses: google-github-actions/setup-gcloud@v2
       
     - name: Terraform Init
       working-directory: ./terraform
@@ -53,6 +47,7 @@ jobs:
         TF_VAR_project_id: ${{ secrets.GCP_PROJECT_ID }}
         TF_VAR_db_password: ${{ secrets.DB_PASSWORD_SECRET }}
         TF_VAR_db_user: ${{ secrets.DB_USER_SECRET }}
+        TF_VAR_zone: ${{ secrets.GKE_ZONE }}  # 🔁 Added zone variable
       run: terraform plan -out=tfplan
       
     - name: Terraform Apply
@@ -63,9 +58,9 @@ jobs:
         TF_VAR_project_id: ${{ secrets.GCP_PROJECT_ID }}
         TF_VAR_db_password: ${{ secrets.DB_PASSWORD_SECRET }}
         TF_VAR_db_user: ${{ secrets.DB_USER_SECRET }}
+        TF_VAR_zone: ${{ secrets.GKE_ZONE }}  # 🔁 Added zone variable
       run: terraform apply -auto-approve tfplan
 
-  # Stage 2: Build and Push Docker Image
   build-push:
     name: 🐳 Build & Push Image
     runs-on: ubuntu-latest
@@ -76,16 +71,13 @@ jobs:
       image-tag: ${{ steps.build.outputs.image-tag }}
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
 
-    - name: Authenticate to Google Cloud
-      uses: google-github-actions/auth@v2
+    - uses: google-github-actions/auth@v2
       with:
         credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-    - name: Setup gcloud CLI
-      uses: google-github-actions/setup-gcloud@v2
+    - uses: google-github-actions/setup-gcloud@v2
 
     - name: Configure Docker for Artifact Registry
       run: gcloud auth configure-docker ${{ env.REGISTRY }}
@@ -97,11 +89,9 @@ jobs:
         IMAGE_TAG="${GITHUB_SHA::8}"
         IMAGE_URI="${REGISTRY}/${PROJECT_ID}/${REPOSITORY}/${IMAGE_NAME}:${IMAGE_TAG}"
 
-        # Build and push image
         docker build -t "$IMAGE_URI" .
         docker push "$IMAGE_URI"
 
-        # Also push latest tag if on main
         if [ "$GITHUB_REF" = "refs/heads/main" ]; then
           docker tag "$IMAGE_URI" "${REGISTRY}/${PROJECT_ID}/${REPOSITORY}/${IMAGE_NAME}:latest"
           docker push "${REGISTRY}/${PROJECT_ID}/${REPOSITORY}/${IMAGE_NAME}:latest"
@@ -110,8 +100,6 @@ jobs:
         echo "image-tag=${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
         echo "Built and pushed: $IMAGE_URI"
 
-
-  # Stage 3: Deploy FastAPI Application
   deploy-app:
     name: 🚀 Deploy FastAPI App
     runs-on: ubuntu-latest
@@ -119,26 +107,22 @@ jobs:
     if: always() && needs.build-push.result == 'success' && github.event_name != 'pull_request'
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
       
-    - name: Authenticate to Google Cloud
-      uses: google-github-actions/auth@v2
+    - uses: google-github-actions/auth@v2
       with:
         credentials_json: ${{ secrets.GCP_SA_KEY }}
         
-    - name: Setup gcloud CLI
-      uses: google-github-actions/setup-gcloud@v2
+    - uses: google-github-actions/setup-gcloud@v2
 
     - name: Install gke-gcloud-auth-plugin 
       run: gcloud components install gke-gcloud-auth-plugin
       
     - name: Get GKE credentials
       run: |
-        gcloud container clusters get-credentials ${{ secrets.GKE_CLUSTER_NAME }} --region ${{ secrets.GKE_REGION }} --project ${{ secrets.GCP_PROJECT_ID }}
-        
-    - name: Setup Helm
-      uses: azure/setup-helm@v3
+        gcloud container clusters get-credentials ${{ secrets.GKE_CLUSTER_NAME }} --zone ${{ secrets.GKE_ZONE }} --project ${{ secrets.GCP_PROJECT_ID }}  # 🔁 CHANGED FROM --region
+
+    - uses: azure/setup-helm@v3
       with:
         version: '3.12.0'
         
@@ -157,20 +141,13 @@ jobs:
 
     - name: Verify deployment
       run: |
-        echo "Deleting completed pods if any..."
         kubectl delete pod -l app.kubernetes.io/name=fastapi-app --field-selector=status.phase=Succeeded || true
-        
-        echo "Listing current pods..."
         kubectl get pods -l app.kubernetes.io/name=fastapi-app
-
-        echo "Waiting for running pods to become ready..."
         kubectl wait --for=condition=ready pod \
           -l app.kubernetes.io/name=fastapi-app \
           --field-selector=status.phase=Running \
           --timeout=300s
 
-
-  # Stage 4: Deploy Monitoring Stack
   deploy-monitoring:
     name: 📊 Deploy Monitoring Stack
     runs-on: ubuntu-latest
@@ -178,39 +155,29 @@ jobs:
     if: always() && (needs.terraform.result == 'success' || needs.terraform.result == 'skipped') && github.event_name != 'pull_request'
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
       
-    - name: Authenticate to Google Cloud
-      uses: google-github-actions/auth@v2
+    - uses: google-github-actions/auth@v2
       with:
         credentials_json: ${{ secrets.GCP_SA_KEY }}
         
-    - name: Setup gcloud CLI
-      uses: google-github-actions/setup-gcloud@v2
+    - uses: google-github-actions/setup-gcloud@v2
 
-    - name: Install gke-gcloud-auth-plugin
-      run: gcloud components install gke-gcloud-auth-plugin 
+    - run: gcloud components install gke-gcloud-auth-plugin 
       
     - name: Get GKE credentials
       run: |
-        gcloud container clusters get-credentials ${{ secrets.GKE_CLUSTER_NAME }} --region ${{ secrets.GKE_REGION }} --project ${{ secrets.GCP_PROJECT_ID }}
-        
-    - name: Setup Helm
-      uses: azure/setup-helm@v3
+        gcloud container clusters get-credentials ${{ secrets.GKE_CLUSTER_NAME }} --zone ${{ secrets.GKE_ZONE }} --project ${{ secrets.GCP_PROJECT_ID }}  # 🔁 CHANGED FROM --region
+
+    - uses: azure/setup-helm@v3
       with:
         version: '3.12.0'
         
     - name: Deploy Prometheus Stack
       run: |
-        # Add prometheus helm repo
         helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
         helm repo update
-        
-        # Create monitoring namespace
         kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
-        
-        # Deploy kube-prometheus-stack (includes Prometheus, Grafana, AlertManager)
         helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
           --namespace monitoring \
           --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false \
@@ -225,7 +192,6 @@ jobs:
         kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=prometheus -n monitoring --timeout=300s
         kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=grafana -n monitoring --timeout=300s
 
-  # Stage 5: Configure Monitoring
   configure-monitoring:
     name: ⚙️ Configure Alerts & Dashboards
     runs-on: ubuntu-latest
@@ -233,27 +199,22 @@ jobs:
     if: always() && needs.deploy-monitoring.result == 'success' && github.event_name != 'pull_request'
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
       
-    - name: Authenticate to Google Cloud
-      uses: google-github-actions/auth@v2
+    - uses: google-github-actions/auth@v2
       with:
         credentials_json: ${{ secrets.GCP_SA_KEY }}
         
-    - name: Setup gcloud CLI
-      uses: google-github-actions/setup-gcloud@v2
+    - uses: google-github-actions/setup-gcloud@v2
 
-    - name: Install gke-gcloud-auth-plugin
-      run: gcloud components install gke-gcloud-auth-plugin 
+    - run: gcloud components install gke-gcloud-auth-plugin 
       
     - name: Get GKE credentials
       run: |
-        gcloud container clusters get-credentials ${{ secrets.GKE_CLUSTER_NAME }} --region ${{ secrets.GKE_REGION }} --project ${{ secrets.GCP_PROJECT_ID }}
+        gcloud container clusters get-credentials ${{ secrets.GKE_CLUSTER_NAME }} --zone ${{ secrets.GKE_ZONE }} --project ${{ secrets.GCP_PROJECT_ID }}  # 🔁 CHANGED FROM --region
         
-    - name: Apply Custom Dashboards
+        - name: Apply Custom Dashboards
       run: |
-        # Apply custom Grafana dashboards if you have them
         if [ -d "./monitoring/dashboards" ]; then
           kubectl create configmap grafana-dashboards \
             --from-file=./monitoring/dashboards/ \
@@ -263,14 +224,12 @@ jobs:
         
     - name: Apply Custom Alert Rules
       run: |
-        # Apply custom PrometheusRule CRDs if you have them
         if [ -d "./monitoring/alerts" ]; then
           kubectl apply -f ./monitoring/alerts/ -n monitoring
         fi
         
     - name: Configure ServiceMonitor for FastAPI
       run: |
-        # Create ServiceMonitor for FastAPI metrics scraping
         cat <<EOF | kubectl apply -f -
         apiVersion: monitoring.coreos.com/v1
         kind: ServiceMonitor
@@ -287,7 +246,6 @@ jobs:
             interval: 30s
         EOF
 
-  # Stage 6: Testing & Notifications
   test-notify:
     name: ✅ Test & Notify
     runs-on: ubuntu-latest
@@ -295,24 +253,20 @@ jobs:
     if: always() && github.event_name != 'pull_request'
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
       
-    - name: Authenticate to Google Cloud
-      uses: google-github-actions/auth@v2
+    - uses: google-github-actions/auth@v2
       with:
         credentials_json: ${{ secrets.GCP_SA_KEY }}
         
-    - name: Install gke-gcloud-auth-plugin
-      run: gcloud components install gke-gcloud-auth-plugin 
+    - run: gcloud components install gke-gcloud-auth-plugin 
       
     - name: Get GKE credentials
       run: |
-        gcloud container clusters get-credentials ${{ secrets.GKE_CLUSTER_NAME }} --region ${{ secrets.GKE_REGION }} --project ${{ secrets.GCP_PROJECT_ID }}
+        gcloud container clusters get-credentials ${{ secrets.GKE_CLUSTER_NAME }} --zone ${{ secrets.GKE_ZONE }} --project ${{ secrets.GCP_PROJECT_ID }}  # 🔁 CHANGED FROM --region
         
     - name: Health Check FastAPI
       run: |
-        # Get FastAPI service external IP
         FASTAPI_IP=$(kubectl get service fastapi-app -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
         
         if [ -n "$FASTAPI_IP" ]; then
@@ -325,12 +279,10 @@ jobs:
         
     - name: Check Prometheus Targets
       run: |
-        # Port-forward to check Prometheus targets
         kubectl port-forward -n monitoring svc/monitoring-kube-prometheus-prometheus 9090:9090 &
         PF_PID=$!
         sleep 10
         
-        # Check if targets are up
         curl -s http://localhost:9090/api/v1/targets | jq '.data.activeTargets[] | select(.labels.job=="fastapi-app") | .health'
         
         kill $PF_PID

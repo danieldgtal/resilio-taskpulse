@@ -23,5 +23,5 @@ spec:
       - {{ .Release.Namespace }} # Automatically use the namespace where your app is deployed (e.g., 'default')
   endpoints:
     - port: metrics # This refers to the 'name' of the port in your Service YAML (the one for metrics)
-      path: /metrics # The endpoint path where your FastAPI app exposes metrics
-      interval: 15s # How often Prometheus should scrape metrics
+      path: /metrics 
+      interval: 15s 
