@@ -1,0 +1,210 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "title": "FastAPI Overview",
+  "panels": [
+    {
+      "type": "graph",
+      "title": "Request Rate",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "sum by (status) (rate(http_requests_total{job=\"fastapi-app\"}[1m]))",
+          "legendFormat": "{{status}}",
+          "refId": "A"
+        }
+      ],
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "fill": 1,
+      "linewidth": 2,
+      "span": 12,
+      "stack": false,
+      "options": {
+        "dataLinks": []
+      }
+    },
+    {
+      "type": "graph",
+      "title": "5xx Error Rate Percentage",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "sum by (instance) (rate(http_requests_total{job=\"fastapi-app\", status=~\"5..\"}[1m])) / sum by (instance) (rate(http_requests_total{job=\"fastapi-app\"}[1m])) * 100",
+          "legendFormat": "{{instance}}",
+          "refId": "A"
+        }
+      ],
+      "yaxis": {
+        "label": "Error Rate (%)",
+        "format": "percentunit",
+        "min": 0,
+        "max": 100
+      },
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "fill": 1,
+      "linewidth": 2,
+      "span": 12,
+      "stack": false,
+      "options": {
+        "dataLinks": []
+      }
+    },
+    {
+      "type": "graph",
+      "title": "Request Latency (P90)",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.90, sum by (le, instance) (rate(http_request_duration_seconds_bucket{job=\"fastapi-app\"}[5m])))",
+          "legendFormat": "P90 - {{instance}}",
+          "refId": "A"
+        }
+      ],
+      "yaxis": {
+        "label": "Latency (s)",
+        "format": "s",
+        "min": 0
+      },
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "fill": 1,
+      "linewidth": 2,
+      "span": 12,
+      "stack": false,
+      "options": {
+        "dataLinks": []
+      }
+    },
+    {
+      "type": "graph",
+      "title": "Pod Restarts",
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "sum by (pod) (changes(kube_pod_container_status_restarts_total{container=\"fastapi-app\", job=\"kube-state-metrics\", namespace=\"default\"}[15m]))",
+          "legendFormat": "{{pod}}",
+          "refId": "A"
+        }
+      ],
+      "yaxis": {
+        "label": "Restarts",
+        "format": "short",
+        "min": 0
+      },
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "fill": 1,
+      "linewidth": 2,
+      "span": 12,
+      "stack": false,
+      "options": {
+        "dataLinks": []
+      }
+    },
+    {
+      "type": "graph",
+      "title": "CPU Usage (Cores)",
+      "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "sum by (pod) (node_namespace_pod_container:container_cpu_usage_seconds_total:sum_irate{container=\"fastapi-app\", namespace=\"default\"})",
+          "legendFormat": "{{pod}}",
+          "refId": "A"
+        }
+      ],
+      "yaxis": {
+        "label": "Cores",
+        "format": "short",
+        "min": 0
+      },
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "fill": 1,
+      "linewidth": 2,
+      "span": 12,
+      "stack": false,
+      "options": {
+        "dataLinks": []
+      }
+    },
+    {
+      "type": "graph",
+      "title": "Memory Usage (Bytes)",
+      "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "sum by (pod) (container_memory_usage_bytes{container=\"fastapi-app\", namespace=\"default\"})",
+          "legendFormat": "{{pod}}",
+          "refId": "A"
+        }
+      ],
+      "yaxis": {
+        "label": "Bytes",
+        "format": "bytes",
+        "min": 0
+      },
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "fill": 1,
+      "linewidth": 2,
+      "span": 12,
+      "stack": false,
+      "options": {
+        "dataLinks": []
+      }
+    }
+  ],
+  "timezone": "browser",
+  "schemaVersion": 27,
+  "version": 2,
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "5s",
+      "10s",
+      "30s",
+      "1m",
+      "5m",
+      "15m",
+      "30m",
+      "1h",
+      "2h",
+      "1d"
+    ],
+    "time_options": [
+      "5m",
+      "15m",
+      "1h",
+      "6h",
+      "12h",
+      "24h",
+      "2d",
+      "7d",
+      "30d"
+    ]
+  }
+}
