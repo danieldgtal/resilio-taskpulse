@@ -258,7 +258,9 @@ jobs:
       with:
         credentials_json: ${{ secrets.GCP_SA_KEY }}
         
-    - run: sudo apt-get install google-cloud-cli-gke-gcloud-auth-plugin
+    - name: Install GKE Gcloud Auth Plugin
+      run: | 
+        sudo apt-get install google-cloud-cli-gke-gcloud-auth-plugin
       
     - name: Get GKE credentials
       run: |
