@@ -16,4 +16,4 @@ Refer to the `docs/` folder for setup instructions and operational details.
 
 ## License
 
-This project is open-source and available under the MIT License.
+This project is open-source and available under the MIT License..
