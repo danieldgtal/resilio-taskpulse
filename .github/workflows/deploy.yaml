@@ -214,11 +214,23 @@ jobs:
         
     - name: Apply Custom Dashboards
       run: |
+        # Check if yq is installed, if not, install it
+        if ! command -v yq &> /dev/null
+        then
+            echo "yq not found, installing..."
+            sudo apt-get update
+            sudo apt-get install -y yq
+        else
+            echo "yq is already installed."
+        fi
+
         if [ -d "./monitoring/dashboards" ]; then
           kubectl create configmap grafana-dashboards \
             --from-file=./monitoring/dashboards/ \
             --namespace monitoring \
-            --dry-run=client -o yaml | kubectl apply -f -
+            --dry-run=client -o yaml | \
+            yq '.metadata.labels.grafana_dashboard = "1"' | \' 
+            kubectl apply -f -
         fi
         
     - name: Apply Custom Alert Rules
