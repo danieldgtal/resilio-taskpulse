@@ -225,11 +225,12 @@ jobs:
         fi
 
         if [ -d "./monitoring/dashboards" ]; then
+          # Create the ConfigMap YAML, add the label, then apply
           kubectl create configmap grafana-dashboards \
             --from-file=./monitoring/dashboards/ \
             --namespace monitoring \
             --dry-run=client -o yaml | \
-            yq '.metadata.labels.grafana_dashboard = "1"' | \' 
+            yq '.metadata.labels.grafana_dashboard = "1"' | \
             kubectl apply -f -
         fi
         
