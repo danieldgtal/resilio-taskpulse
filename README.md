@@ -47,8 +47,3 @@ This proof-of-concept (PoC) project simulates a production-grade environment wit
   - Pod crash loops
   - Service unavailability
 - Grafana exposed via LoadBalancer for public access
-
----
-
-## 📁 Project Structure
-
