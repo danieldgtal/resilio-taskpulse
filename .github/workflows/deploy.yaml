@@ -46,7 +46,7 @@ jobs:
         TF_VAR_project_id: ${{ secrets.GCP_PROJECT_ID }}
         TF_VAR_db_password: ${{ secrets.DB_PASSWORD_SECRET }}
         TF_VAR_db_user: ${{ secrets.DB_USER_SECRET }}
-        TF_VAR_zone: ${{ secrets.GKE_ZONE }}  # 🔁 Added zone variable
+        TF_VAR_zone: ${{ secrets.GKE_ZONE }}
       run: terraform plan -out=tfplan
       
     - name: Terraform Apply
