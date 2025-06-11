@@ -81,6 +81,7 @@ Upcoming additions:
 - Simulate pod failures (`kubectl delete pod`)
 - Simulate CPU spikes or memory pressure (`stress-ng`)
 - Verify alerts and recovery mechanisms
+- Verify alerts on slack
 
 ---
 
