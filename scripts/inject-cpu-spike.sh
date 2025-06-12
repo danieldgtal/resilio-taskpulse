@@ -18,7 +18,6 @@ echo "Selected pod: ${POD_NAME}"
 echo "Injecting CPU spike into pod ${POD_NAME} for 30 seconds..."
 
 # Execute a CPU-intensive loop inside the pod's container in the background
-# This command finds the main container in the pod.
 # If your app has multiple containers, you might need to specify --container <container-name>
 kubectl exec -n ${APP_NAMESPACE} "${POD_NAME}" -- /bin/bash -c "echo 'Starting CPU spike (pid $$)'; while true; do :; done & sleep 30; kill $$" &
 
