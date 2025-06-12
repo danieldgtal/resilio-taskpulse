@@ -39,4 +39,4 @@ echo "CPU spike injection attempt completed."
 # kubectl describe pod "${POD_NAME}" -n ${APP_NAMESPACE}
 # kubectl top pod "${POD_NAME}" -n ${APP_NAMESPACE}
 
-echo "Observe your Grafana dashboards (FastAPI Overview) and Prometheus alerts for impact."
+echo "Observe your Grafana dashboards (FastAPI Overview) and Prometheus alerts for impact.."
