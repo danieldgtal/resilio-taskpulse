@@ -1,8 +1,20 @@
 # Resilio – TaskPulse
 
-**TaskPulse** is a lightweight, cloud-native task management backend built to demonstrate modern SRE practices including infrastructure as code, GitOps, observability, and resilience engineering.
+**TaskPulse** is a production-grade, cloud-native SRE project that demonstrates resilient architecture, automated infrastructure, and comprehensive observability at scale. It simulates a real-world task management backend deployed on Google Kubernetes Engine (GKE), showcasing modern Site Reliability Engineering (SRE) principles and DevOps practices.
 
-This proof-of-concept (PoC) project simulates a production-grade environment with scalable architecture, monitoring, alerting, and CI/CD automation.
+This project includes:
+
+- Infrastructure as Code with **Terraform** (GKE, CloudSQL, VPC)
+- CI/CD automation using **GitHub Actions** with conditional workflows
+- A scalable **FastAPI** microservice containerized and deployed via **Helm**
+- End-to-end monitoring using **Prometheus**, **Alertmanager**, and **Grafana**
+- Application-level metrics exposed through a custom `/metrics` endpoint
+- Custom **Prometheus alert rules** and curated **Grafana dashboards**
+- Real-time **Slack notifications** for deployment status and system alerts
+- Service-oriented deployment model aligned with **12-factor app** and **SRE** principles
+
+The architecture and tooling reflect the kind of production-readiness expected in enterprise environments like **Loblaw**, emphasizing performance, scalability, reliability, and operational excellence.
+
 
 ---
 
