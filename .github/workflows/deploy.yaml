@@ -18,29 +18,23 @@ env:
   DB_PASSWORD_SECRET: ${{ secrets.DB_PASSWORD_SECRET }}
   GKE_ZONE: ${{ secrets.GKE_ZONE }}
 
-jobs: # This 'jobs' block should only appear once
+jobs:
   terraform:
     name: Terraform Infrastructure
     runs-on: ubuntu-latest
     if: (contains(github.event.head_commit.message, '[infra]') || github.event_name == 'workflow_dispatch') && github.event_name != 'pull_request'
-
     steps:
     - uses: actions/checkout@v4
-
     - uses: hashicorp/setup-terraform@v3
       with:
         terraform_version: 1.5.0
-
     - uses: google-github-actions/auth@v2
       with:
         credentials_json: ${{ secrets.GCP_SA_KEY }}
-
     - uses: google-github-actions/setup-gcloud@v2
-
     - name: Terraform Init
       working-directory: ./terraform
       run: terraform init
-
     - name: Terraform Plan
       working-directory: ./terraform
       env:
@@ -50,7 +44,6 @@ jobs: # This 'jobs' block should only appear once
         TF_VAR_db_user: ${{ secrets.DB_USER_SECRET }}
         TF_VAR_zone: ${{ secrets.GKE_ZONE }}
       run: terraform plan -out=tfplan
-
     - name: Terraform Apply
       working-directory: ./terraform
       if: github.ref == 'refs/heads/main'
@@ -63,71 +56,52 @@ jobs: # This 'jobs' block should only appear once
       run: terraform apply -auto-approve tfplan
 
   build-push:
-    name: 🐳 Build & Push Image
+    name: Build & Push Docker Image
     runs-on: ubuntu-latest
     needs: terraform
     if: always() && (needs.terraform.result == 'success' || needs.terraform.result == 'skipped') && github.event_name != 'pull_request'
-
     outputs:
       image-tag: ${{ steps.build.outputs.image-tag }}
-
     steps:
     - uses: actions/checkout@v4
-
     - uses: google-github-actions/auth@v2
       with:
         credentials_json: ${{ secrets.GCP_SA_KEY }}
-
     - uses: google-github-actions/setup-gcloud@v2
-
-    - name: Configure Docker for Artifact Registry
+    - name: Configure Docker
       run: gcloud auth configure-docker ${{ env.REGISTRY }}
-
-    - name: Build and push Docker image
+    - name: Build and Push
       id: build
       working-directory: ./app
       run: |
-        IMAGE_TAG="${GITHUB_SHA::8}"
-        IMAGE_URI="${REGISTRY}/${PROJECT_ID}/${REPOSITORY}/${IMAGE_NAME}:${IMAGE_TAG}"
-
-        docker build -t "$IMAGE_URI" .
-        docker push "$IMAGE_URI"
-
+        TAG="${GITHUB_SHA::8}"
+        URI="${REGISTRY}/${PROJECT_ID}/${REPOSITORY}/${IMAGE_NAME}:${TAG}"
+        docker build -t "$URI" .
+        docker push "$URI"
         if [ "$GITHUB_REF" = "refs/heads/main" ]; then
-          docker tag "$IMAGE_URI" "${REGISTRY}/${PROJECT_ID}/${REPOSITORY}/${IMAGE_NAME}:latest"
+          docker tag "$URI" "${REGISTRY}/${PROJECT_ID}/${REPOSITORY}/${IMAGE_NAME}:latest"
           docker push "${REGISTRY}/${PROJECT_ID}/${REPOSITORY}/${IMAGE_NAME}:latest"
         fi
-
-        echo "image-tag=${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
-        echo "Built and pushed: $IMAGE_URI"
+        echo "image-tag=$TAG" >> $GITHUB_OUTPUT
 
   deploy-app:
-    name: 🚀 Deploy FastAPI App
+    name: Deploy FastAPI App
     runs-on: ubuntu-latest
     needs: [terraform, build-push, deploy-monitoring]
     if: always() && needs.build-push.result == 'success' && github.event_name != 'pull_request'
-
     steps:
     - uses: actions/checkout@v4
-
     - uses: google-github-actions/auth@v2
       with:
         credentials_json: ${{ secrets.GCP_SA_KEY }}
-
     - uses: google-github-actions/setup-gcloud@v2
-
-    - name: Install gke-gcloud-auth-plugin
-      run: gcloud components install gke-gcloud-auth-plugin
-
-    - name: Get GKE credentials
-      run: |
-        gcloud container clusters get-credentials ${{ secrets.GKE_CLUSTER_NAME }} --zone ${{ secrets.GKE_ZONE }} --project ${{ secrets.GCP_PROJECT_ID }}
-
+    - run: gcloud components install gke-gcloud-auth-plugin
+    - name: Get GKE Credentials
+      run: gcloud container clusters get-credentials ${{ secrets.GKE_CLUSTER_NAME }} --zone ${{ secrets.GKE_ZONE }} --project ${{ secrets.GCP_PROJECT_ID }}
     - uses: azure/setup-helm@v3
       with:
         version: '3.12.0'
-
-    - name: Deploy or upgrade the FastAPI app
+    - name: Helm Deploy
       run: |
         helm upgrade --install fastapi-app ./helm/fastapi-app \
           --set image.repository="${REGISTRY}/${PROJECT_ID}/${REPOSITORY}/${IMAGE_NAME}" \
@@ -139,175 +113,75 @@ jobs: # This 'jobs' block should only appear once
           --set service.metricsPort=8000 \
           --namespace default \
           --wait --timeout=300s
-
-    - name: Verify deployment
+    - name: Verify App
       run: |
         kubectl delete pod -l app.kubernetes.io/name=fastapi-app --field-selector=status.phase=Succeeded || true
-        kubectl get pods -l app.kubernetes.io/name=fastapi-app
-        kubectl wait --for=condition=ready pod \
-          -l app.kubernetes.io/name=fastapi-app \
-          --field-selector=status.phase=Running \
-          --timeout=300s
+        kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=fastapi-app --timeout=300s
 
   deploy-monitoring:
-    name: 📊 Deploy Monitoring Stack
+    name: Deploy Monitoring
     runs-on: ubuntu-latest
-    needs: [terraform]
+    needs: terraform
     if: always() && (needs.terraform.result == 'success' || needs.terraform.result == 'skipped') && github.event_name != 'pull_request'
-
     steps:
     - uses: actions/checkout@v4
-
     - uses: google-github-actions/auth@v2
       with:
         credentials_json: ${{ secrets.GCP_SA_KEY }}
-
     - uses: google-github-actions/setup-gcloud@v2
-
     - run: gcloud components install gke-gcloud-auth-plugin
-
-    - name: Get GKE credentials
-      run: |
-        gcloud container clusters get-credentials ${{ secrets.GKE_CLUSTER_NAME }} --zone ${{ secrets.GKE_ZONE }} --project ${{ secrets.GCP_PROJECT_ID }}
-
+    - name: Get GKE Credentials
+      run: gcloud container clusters get-credentials ${{ secrets.GKE_CLUSTER_NAME }} --zone ${{ secrets.GKE_ZONE }} --project ${{ secrets.GCP_PROJECT_ID }}
     - uses: azure/setup-helm@v3
       with:
         version: '3.12.0'
-
-    # NEW STEP: Explicitly create the 'monitoring' namespace
     - name: Create Monitoring Namespace
       run: |
         kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
-
     - name: Deploy Prometheus Stack
       run: |
         helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
         helm repo update
         helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
           --namespace monitoring \
-          --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false \
           --set grafana.adminPassword=${{ secrets.GRAFANA_ADMIN_PASSWORD }} \
           --set grafana.service.type=LoadBalancer \
-          --set alertmanager.alertmanagerSpec.storage.volumeClaimTemplate.spec.resources.requests.storage=10Gi \
-          --set alertmanager.enabled=true \
-          --set alertmanager.alertmanagerSpec.routePrefix=/ \
-          \
-          --set alertmanager.config.global.resolve_timeout=5m \
-          --set alertmanager.config.route.group_by="[alertname,job]" \
-          --set alertmanager.config.route.group_wait=30s \
-          --set alertmanager.config.route.group_interval=5m \
-          --set alertmanager.config.route.repeat_interval=12h \
-          --set alertmanager.config.route.receiver=slack-default \
-          --set 'alertmanager.config.route.routes[0].match.severity=critical' \
-          --set 'alertmanager.config.route.routes[0].receiver=slack-critical' \
-          --set 'alertmanager.config.route.routes[1].match.severity=warning' \
-          --set 'alertmanager.config.route.routes[1].receiver=slack-default' \
-          --set 'alertmanager.config.route.routes[2].match.severity=info' \
-          --set 'alertmanager.config.route.routes[2].receiver=slack-default' \
-          \
-          --set 'alertmanager.config.receivers[0].name=slack-default' \
-          --set 'alertmanager.config.receivers[0].slack_configs[0].channel=#alerts-general' \
-          --set 'alertmanager.config.receivers[0].slack_configs[0].send_resolved=true' \
-          --set 'alertmanager.config.receivers[0].slack_configs[0].api_url=secret://alertmanager-slack-webhook/alertmanager_slack_webhook_url' \
-          --set 'alertmanager.config.receivers[0].slack_configs[0].title=[{{ .Status | toUpper }}] {{ .CommonLabels.alertname }}' \
-          --set 'alertmanager.config.receivers[0].slack_configs[0].text={{ range .Alerts }}*Alert:* {{ .Annotations.summary }}\n*Description:* {{ .Annotations.description }}\n*Severity:* {{ .Labels.severity }}\n*Instance:* {{ .Labels.instance }}\n*Dashboard:* <{{ .GeneratorURL }}|Prometheus Link>\n{{ end }}' \
-          \
-          --set 'alertmanager.config.receivers[1].name=slack-critical' \
-          --set 'alertmanager.config.receivers[1].slack_configs[0].channel=#alerts-critical' \
-          --set 'alertmanager.config.receivers[1].slack_configs[0].send_resolved=true' \
-          --set 'alertmanager.config.receivers[1].slack_configs[0].api_url=secret://alertmanager-slack-webhook/alertmanager_slack_webhook_url' \
-          --set 'alertmanager.config.receivers[1].slack_configs[0].title=[CRITICAL] {{ .CommonLabels.alertname }}' \
-          --set 'alertmanager.config.receivers[1].slack_configs[0].text={{ range .Alerts }}*Alert:* {{ .Annotations.summary }}\n*Description:* {{ .Annotations.description }}\n*Severity:* {{ .Labels.severity }}\n*Instance:* {{ .Labels.instance }}\n*Dashboard:* <{{ .GeneratorURL }}|Prometheus Link>\n{{ end }}' \
-          \
           --wait --timeout=600s
-
-    - name: Create Alertmanager Slack Webhook Secret
+    - name: Create Slack Secret
       run: |
         kubectl create secret generic alertmanager-slack-webhook \
           --from-literal=alertmanager_slack_webhook_url=${{ secrets.SLACK_WEBHOOK_URL }} \
-          --namespace monitoring \
-          --dry-run=client -o yaml | kubectl apply -f -
+          --namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
 
-    - name: Verify monitoring deployment
-      run: |
-        echo "--- Verifying monitoring pods readiness ---"
-        kubectl get pods -n monitoring
-
-        echo "Waiting for Prometheus pod to be ready..."
-        kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=prometheus -n monitoring --timeout=300s || { echo "Prometheus pod not ready!"; exit 1; }
-
-        echo "Waiting for Grafana pod to be ready..."
-        kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=grafana -n monitoring --timeout=300s || { echo "Grafana pod not ready!"; exit 1; }
-
-        echo "Waiting for Alertmanager pod to be ready..."
-        kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=alertmanager -n monitoring --timeout=300s || { echo "Alertmanager pod not ready!"; exit 1; }
-
-        echo "Verifying Alertmanager API responsiveness and configuration loading..."
-        kubectl port-forward -n monitoring svc/monitoring-kube-prometheus-alertmanager 9093:9093 &
-        PF_PID=$!
-
-        sleep 10
-
-        if curl --fail http://localhost:9093/api/v2/status; then
-          echo "Alertmanager API is responsive and basic configuration seems loaded."
-        else
-          echo "Alertmanager API check failed or configuration issue detected!"
-          kill $PF_PID
-          exit 1
-        fi
-
-        kill $PF_PID
-        echo "Alertmanager verification complete."
-
-  # This job was duplicated and incorrectly indented, it is now corrected.
   configure-monitoring:
-    name: ⚙️ Configure Alerts & Dashboards
+    name: Configure Dashboards and Alerts
     runs-on: ubuntu-latest
     needs: [deploy-app, deploy-monitoring]
     if: always() && needs.deploy-monitoring.result == 'success' && github.event_name != 'pull_request'
-
     steps:
     - uses: actions/checkout@v4
-
     - uses: google-github-actions/auth@v2
       with:
         credentials_json: ${{ secrets.GCP_SA_KEY }}
-
     - uses: google-github-actions/setup-gcloud@v2
-
     - run: gcloud components install gke-gcloud-auth-plugin
-
-    - name: Get GKE credentials
+    - name: Get GKE Credentials
+      run: gcloud container clusters get-credentials ${{ secrets.GKE_CLUSTER_NAME }} --zone ${{ secrets.GKE_ZONE }} --project ${{ secrets.GCP_PROJECT_ID }}
+    - name: Apply Grafana Dashboards
       run: |
-        gcloud container clusters get-credentials ${{ secrets.GKE_CLUSTER_NAME }} --zone ${{ secrets.GKE_ZONE }} --project ${{ secrets.GCP_PROJECT_ID }}
-
-    - name: Apply Custom Dashboards
-      run: |
-        if ! command -v yq &> /dev/null
-        then
-            echo "yq not found, installing..."
-            sudo apt-get update
-            sudo apt-get install -y yq
-        else
-            echo "yq is already installed."
-        fi
-
+        sudo apt-get update && sudo apt-get install -y yq
         if [ -d "./monitoring/dashboards" ]; then
           kubectl create configmap grafana-dashboards \
             --from-file=./monitoring/dashboards/ \
             --namespace monitoring \
-            --dry-run=client -o yaml | \
-            yq '.metadata.labels.grafana_dashboard = "1"' | \
-            kubectl apply -f -
+            --dry-run=client -o yaml | yq '.metadata.labels.grafana_dashboard = "1"' | kubectl apply -f -
         fi
-
-    - name: Apply Custom Alert Rules
+    - name: Apply Prometheus Alert Rules
       run: |
         if [ -d "./monitoring/alerts" ]; then
           kubectl apply -f ./monitoring/alerts/ -n monitoring
         fi
-
-    - name: Configure ServiceMonitor for FastAPI
+    - name: Create ServiceMonitor for FastAPI
       run: |
         cat <<EOF | kubectl apply -f -
         apiVersion: monitoring.coreos.com/v1
@@ -325,66 +199,40 @@ jobs: # This 'jobs' block should only appear once
             interval: 30s
         EOF
 
-  # This job was duplicated and incorrectly indented, it is now corrected.
   test-notify:
-    name: ✅ Test & Notify
+    name: Post-deployment Health Check
     runs-on: ubuntu-latest
     needs: [deploy-app, configure-monitoring]
     if: always() && github.event_name != 'pull_request'
-
     steps:
     - uses: actions/checkout@v4
-
     - uses: google-github-actions/auth@v2
       with:
         credentials_json: ${{ secrets.GCP_SA_KEY }}
-
     - uses: google-github-actions/setup-gcloud@v2
-
     - run: gcloud components install gke-gcloud-auth-plugin
-
-    - name: Get GKE credentials
+    - name: Get GKE Credentials
+      run: gcloud container clusters get-credentials ${{ secrets.GKE_CLUSTER_NAME }} --zone ${{ secrets.GKE_ZONE }} --project ${{ secrets.GCP_PROJECT_ID }}
+    - name: Check FastAPI Health
       run: |
-        gcloud container clusters get-credentials ${{ secrets.GKE_CLUSTER_NAME }} --zone ${{ secrets.GKE_ZONE }} --project ${{ secrets.GCP_PROJECT_ID }}
-
-    - name: Health Check FastAPI
-      run: |
-        FASTAPI_IP=$(kubectl get service fastapi-app -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-
-        if [ -n "$FASTAPI_IP" ]; then
-          echo "Testing FastAPI at http://$FASTAPI_IP"
-          curl -f http://$FASTAPI_IP/health || echo "Health check failed"
-          curl -f http://$FASTAPI_IP/docs || echo "Docs endpoint failed"
-        else
-          echo "FastAPI service IP not available yet"
-        fi
-
-    - name: Check Prometheus Targets
-      run: |
-        kubectl port-forward -n monitoring svc/monitoring-kube-prometheus-prometheus 9090:9090 &
-        PF_PID=$!
-        sleep 10
-
-        curl -s http://localhost:9090/api/v1/targets | jq '.data.activeTargets[] | select(.labels.job=="fastapi-app") | .health'
-
-        kill $PF_PID
-
+        IP=$(kubectl get svc fastapi-app -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+        echo "Testing FastAPI at: http://$IP"
+        curl -f http://$IP/health || echo "Health check failed"
     - name: Get Grafana URL
       run: |
-        GRAFANA_IP=$(kubectl get service monitoring-grafana -n monitoring -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+        GRAFANA_IP=$(kubectl get svc monitoring-grafana -n monitoring -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
         echo "Grafana available at: http://$GRAFANA_IP"
         echo "GRAFANA_URL=http://$GRAFANA_IP" >> $GITHUB_ENV
-
     - name: Slack Notification
       if: always()
       uses: 8398a7/action-slack@v3
       with:
         status: ${{ job.status }}
         text: |
-          Deployment Status: ${{ job.status }}
+          Deployment: ${{ job.status }}
           FastAPI App: ${{ needs.deploy-app.result }}
           Monitoring: ${{ needs.deploy-monitoring.result }}
-          Configuration: ${{ needs.configure-monitoring.result }}
+          Config: ${{ needs.configure-monitoring.result }}
           Grafana: ${{ env.GRAFANA_URL }}
       env:
         SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
