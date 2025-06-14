@@ -1,3 +1,4 @@
+# CI/CD Pipeline: Automates Entire Infra, App, Monitoring Stack. 
 name: Deploy to GKE Cluster
 
 on:
