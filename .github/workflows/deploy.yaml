@@ -16,30 +16,31 @@ env:
   IMAGE_NAME: fastapi
   DB_USER_SECRET: ${{ secrets.DB_USER_SECRET }}
   DB_PASSWORD_SECRET: ${{ secrets.DB_PASSWORD_SECRET }}
-  GKE_ZONE: ${{ secrets.GKE_ZONE }}  
-jobs:
+  GKE_ZONE: ${{ secrets.GKE_ZONE }}
+
+jobs: # This 'jobs' block should only appear once
   terraform:
     name: Terraform Infrastructure
     runs-on: ubuntu-latest
     if: (contains(github.event.head_commit.message, '[infra]') || github.event_name == 'workflow_dispatch') && github.event_name != 'pull_request'
-    
+
     steps:
     - uses: actions/checkout@v4
-      
+
     - uses: hashicorp/setup-terraform@v3
       with:
         terraform_version: 1.5.0
-        
+
     - uses: google-github-actions/auth@v2
       with:
         credentials_json: ${{ secrets.GCP_SA_KEY }}
-        
+
     - uses: google-github-actions/setup-gcloud@v2
-      
+
     - name: Terraform Init
       working-directory: ./terraform
       run: terraform init
-      
+
     - name: Terraform Plan
       working-directory: ./terraform
       env:
@@ -49,7 +50,7 @@ jobs:
         TF_VAR_db_user: ${{ secrets.DB_USER_SECRET }}
         TF_VAR_zone: ${{ secrets.GKE_ZONE }}
       run: terraform plan -out=tfplan
-      
+
     - name: Terraform Apply
       working-directory: ./terraform
       if: github.ref == 'refs/heads/main'
@@ -58,7 +59,7 @@ jobs:
         TF_VAR_project_id: ${{ secrets.GCP_PROJECT_ID }}
         TF_VAR_db_password: ${{ secrets.DB_PASSWORD_SECRET }}
         TF_VAR_db_user: ${{ secrets.DB_USER_SECRET }}
-        TF_VAR_zone: ${{ secrets.GKE_ZONE }}  # 🔁 Added zone variable
+        TF_VAR_zone: ${{ secrets.GKE_ZONE }}
       run: terraform apply -auto-approve tfplan
 
   build-push:
@@ -66,7 +67,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: terraform
     if: always() && (needs.terraform.result == 'success' || needs.terraform.result == 'skipped') && github.event_name != 'pull_request'
-    
+
     outputs:
       image-tag: ${{ steps.build.outputs.image-tag }}
 
@@ -105,27 +106,27 @@ jobs:
     runs-on: ubuntu-latest
     needs: [terraform, build-push]
     if: always() && needs.build-push.result == 'success' && github.event_name != 'pull_request'
-    
+
     steps:
     - uses: actions/checkout@v4
-      
+
     - uses: google-github-actions/auth@v2
       with:
         credentials_json: ${{ secrets.GCP_SA_KEY }}
-        
+
     - uses: google-github-actions/setup-gcloud@v2
 
-    - name: Install gke-gcloud-auth-plugin 
+    - name: Install gke-gcloud-auth-plugin
       run: gcloud components install gke-gcloud-auth-plugin
-      
+
     - name: Get GKE credentials
       run: |
-        gcloud container clusters get-credentials ${{ secrets.GKE_CLUSTER_NAME }} --zone ${{ secrets.GKE_ZONE }} --project ${{ secrets.GCP_PROJECT_ID }}  # 🔁 CHANGED FROM --region
+        gcloud container clusters get-credentials ${{ secrets.GKE_CLUSTER_NAME }} --zone ${{ secrets.GKE_ZONE }} --project ${{ secrets.GCP_PROJECT_ID }}
 
     - uses: azure/setup-helm@v3
       with:
         version: '3.12.0'
-        
+
     - name: Deploy or upgrade the FastAPI app
       run: |
         helm upgrade --install fastapi-app ./helm/fastapi-app \
@@ -153,54 +154,50 @@ jobs:
     runs-on: ubuntu-latest
     needs: [terraform]
     if: always() && (needs.terraform.result == 'success' || needs.terraform.result == 'skipped') && github.event_name != 'pull_request'
-    
+
     steps:
     - uses: actions/checkout@v4
-      
+
     - uses: google-github-actions/auth@v2
       with:
         credentials_json: ${{ secrets.GCP_SA_KEY }}
-        
+
     - uses: google-github-actions/setup-gcloud@v2
 
-    - run: gcloud components install gke-gcloud-auth-plugin 
-      
+    - run: gcloud components install gke-gcloud-auth-plugin
+
     - name: Get GKE credentials
       run: |
-        gcloud container clusters get-credentials ${{ secrets.GKE_CLUSTER_NAME }} --zone ${{ secrets.GKE_ZONE }} --project ${{ secrets.GCP_PROJECT_ID }}  # 🔁 CHANGED FROM --region
-
-    - name: Create Alertmanager Slack Webhook Secret
-      run: |
-          kubectl create secret generic alertmanager-slack-webhook \
-            --from-literal=alertmanager_slack_webhook_url=${{ secrets.SLACK_WEBHOOK_URL }} \
-            --namespace monitoring \
-            --dry-run=client -o yaml | kubectl apply -f -
+        gcloud container clusters get-credentials ${{ secrets.GKE_CLUSTER_NAME }} --zone ${{ secrets.GKE_ZONE }} --project ${{ secrets.GCP_PROJECT_ID }}
 
     - uses: azure/setup-helm@v3
       with:
         version: '3.12.0'
-        
+
+    # NEW STEP: Explicitly create the 'monitoring' namespace
+    - name: Create Monitoring Namespace
+      run: |
+        kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
+
     - name: Deploy Prometheus Stack
       run: |
         helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
         helm repo update
-        kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
         helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
           --namespace monitoring \
           --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false \
           --set grafana.adminPassword=${{ secrets.GRAFANA_ADMIN_PASSWORD }} \
           --set grafana.service.type=LoadBalancer \
           --set alertmanager.alertmanagerSpec.storage.volumeClaimTemplate.spec.resources.requests.storage=10Gi \
-          --set alertmanager.enabled=true \ # Ensures Alertmanager is deployed and enabled
-          --set alertmanager.alertmanagerSpec.routePrefix=/ \ # Recommended for GKE LoadBalancer/Ingress setup
+          --set alertmanager.enabled=true \
+          --set alertmanager.alertmanagerSpec.routePrefix=/ \
           \
-          # --- Alertmanager Configuration for Slack ---
           --set alertmanager.config.global.resolve_timeout=5m \
           --set alertmanager.config.route.group_by='[alertname,job]' \
           --set alertmanager.config.route.group_wait=30s \
           --set alertmanager.config.route.group_interval=5m \
           --set alertmanager.config.route.repeat_interval=12h \
-          --set alertmanager.config.route.receiver=slack-default \ # Default receiver for all alerts
+          --set alertmanager.config.route.receiver=slack-default \
           --set 'alertmanager.config.route.routes[0].match.severity=critical' \
           --set 'alertmanager.config.route.routes[0].receiver=slack-critical' \
           --set 'alertmanager.config.route.routes[1].match.severity=warning' \
@@ -209,85 +206,83 @@ jobs:
           --set 'alertmanager.config.route.routes[2].receiver=slack-default' \
           \
           --set 'alertmanager.config.receivers[0].name=slack-default' \
-          --set 'alertmanager.config.receivers[0].slack_configs[0].channel=#alerts-general' \ # <<< IMPORTANT: CHANGE TO YOUR GENERAL SLACK CHANNEL NAME (e.g., #ops-alerts)
+          --set 'alertmanager.config.receivers[0].slack_configs[0].channel=#alerts-general' \
           --set 'alertmanager.config.receivers[0].slack_configs[0].send_resolved=true' \
-          --set 'alertmanager.config.receivers[0].slack_configs[0].api_url=secret://alertmanager-slack-webhook/alertmanager_slack_webhook_url' \ # References the K8s Secret
+          --set 'alertmanager.config.receivers[0].slack_configs[0].api_url=secret://alertmanager-slack-webhook/alertmanager_slack_webhook_url' \
           --set 'alertmanager.config.receivers[0].slack_configs[0].title=[{{ .Status | toUpper }}] {{ .CommonLabels.alertname }}' \
           --set 'alertmanager.config.receivers[0].slack_configs[0].text={{ range .Alerts }}*Alert:* {{ .Annotations.summary }}\n*Description:* {{ .Annotations.description }}\n*Severity:* {{ .Labels.severity }}\n*Instance:* {{ .Labels.instance }}\n*Dashboard:* <{{ .GeneratorURL }}|Prometheus Link>\n{{ end }}' \
           \
           --set 'alertmanager.config.receivers[1].name=slack-critical' \
-          --set 'alertmanager.config.receivers[1].slack_configs[0].channel=#alerts-critical' \ # <<< IMPORTANT: CHANGE TO YOUR CRITICAL SLACK CHANNEL NAME (e.g., #ops-critical)
+          --set 'alertmanager.config.receivers[1].slack_configs[0].channel=#alerts-critical' \
           --set 'alertmanager.config.receivers[1].slack_configs[0].send_resolved=true' \
-          --set 'alertmanager.config.receivers[1].slack_configs[0].api_url=secret://alertmanager-slack-webhook/alertmanager_slack_webhook_url' \ # References the K8s Secret
+          --set 'alertmanager.config.receivers[1].slack_configs[0].api_url=secret://alertmanager-slack-webhook/alertmanager_slack_webhook_url' \
           --set 'alertmanager.config.receivers[1].slack_configs[0].title=[CRITICAL] {{ .CommonLabels.alertname }}' \
           --set 'alertmanager.config.receivers[1].slack_configs[0].text={{ range .Alerts }}*Alert:* {{ .Annotations.summary }}\n*Description:* {{ .Annotations.description }}\n*Severity:* {{ .Labels.severity }}\n*Instance:* {{ .Labels.instance }}\n*Dashboard:* <{{ .GeneratorURL }}|Prometheus Link>\n{{ end }}' \
-          # --- End Alertmanager Configuration ---
           \
           --wait --timeout=600s
-          
+
+    - name: Create Alertmanager Slack Webhook Secret
+      run: |
+        kubectl create secret generic alertmanager-slack-webhook \
+          --from-literal=alertmanager_slack_webhook_url=${{ secrets.SLACK_WEBHOOK_URL }} \
+          --namespace monitoring \
+          --dry-run=client -o yaml | kubectl apply -f -
+
     - name: Verify monitoring deployment
       run: |
         echo "--- Verifying monitoring pods readiness ---"
         kubectl get pods -n monitoring
-        
-        # Verify Prometheus pod readiness
+
         echo "Waiting for Prometheus pod to be ready..."
         kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=prometheus -n monitoring --timeout=300s || { echo "Prometheus pod not ready!"; exit 1; }
-        
-        # Verify Grafana pod readiness
+
         echo "Waiting for Grafana pod to be ready..."
         kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=grafana -n monitoring --timeout=300s || { echo "Grafana pod not ready!"; exit 1; }
-        
-        # NEW ADDITION START
-        # Verify Alertmanager pod readiness
+
         echo "Waiting for Alertmanager pod to be ready..."
         kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=alertmanager -n monitoring --timeout=300s || { echo "Alertmanager pod not ready!"; exit 1; }
-        
-        # Verify Alertmanager API is responsive and can load configuration
+
         echo "Verifying Alertmanager API responsiveness and configuration loading..."
-        # Port-forward Alertmanager's API to localhost within the CI runner
         kubectl port-forward -n monitoring svc/monitoring-kube-prometheus-alertmanager 9093:9093 &
-        PF_PID=$! # Store the process ID of the port-forward command
-        
-        sleep 10 # Give port-forwarding a moment to establish
-        
-        # Attempt to curl Alertmanager's status endpoint; --fail ensures non-zero exit on HTTP errors
+        PF_PID=$!
+
+        sleep 10
+
         if curl --fail http://localhost:9093/api/v2/status; then
           echo "Alertmanager API is responsive and basic configuration seems loaded."
         else
           echo "Alertmanager API check failed or configuration issue detected!"
-          kill $PF_PID # Kill the port-forward process
-          exit 1 # Fail the step
+          kill $PF_PID
+          exit 1
         fi
-        
-        kill $PF_PID # Kill the port-forward process
-        echo "Alertmanager verification complete."
-        # NEW ADDITION END
 
+        kill $PF_PID
+        echo "Alertmanager verification complete."
+
+  # This job was duplicated and incorrectly indented, it is now corrected.
   configure-monitoring:
     name: ⚙️ Configure Alerts & Dashboards
     runs-on: ubuntu-latest
     needs: [deploy-app, deploy-monitoring]
     if: always() && needs.deploy-monitoring.result == 'success' && github.event_name != 'pull_request'
-    
+
     steps:
     - uses: actions/checkout@v4
-      
+
     - uses: google-github-actions/auth@v2
       with:
         credentials_json: ${{ secrets.GCP_SA_KEY }}
-        
+
     - uses: google-github-actions/setup-gcloud@v2
 
-    - run: gcloud components install gke-gcloud-auth-plugin 
-      
+    - run: gcloud components install gke-gcloud-auth-plugin
+
     - name: Get GKE credentials
       run: |
         gcloud container clusters get-credentials ${{ secrets.GKE_CLUSTER_NAME }} --zone ${{ secrets.GKE_ZONE }} --project ${{ secrets.GCP_PROJECT_ID }}
-        
+
     - name: Apply Custom Dashboards
       run: |
-        # Check if yq is installed, if not, install it
         if ! command -v yq &> /dev/null
         then
             echo "yq not found, installing..."
@@ -298,7 +293,6 @@ jobs:
         fi
 
         if [ -d "./monitoring/dashboards" ]; then
-          # Create the ConfigMap YAML, add the label, then apply
           kubectl create configmap grafana-dashboards \
             --from-file=./monitoring/dashboards/ \
             --namespace monitoring \
@@ -306,13 +300,13 @@ jobs:
             yq '.metadata.labels.grafana_dashboard = "1"' | \
             kubectl apply -f -
         fi
-        
+
     - name: Apply Custom Alert Rules
       run: |
         if [ -d "./monitoring/alerts" ]; then
           kubectl apply -f ./monitoring/alerts/ -n monitoring
         fi
-        
+
     - name: Configure ServiceMonitor for FastAPI
       run: |
         cat <<EOF | kubectl apply -f -
@@ -331,31 +325,32 @@ jobs:
             interval: 30s
         EOF
 
+  # This job was duplicated and incorrectly indented, it is now corrected.
   test-notify:
     name: ✅ Test & Notify
     runs-on: ubuntu-latest
     needs: [deploy-app, configure-monitoring]
     if: always() && github.event_name != 'pull_request'
-    
+
     steps:
     - uses: actions/checkout@v4
-      
+
     - uses: google-github-actions/auth@v2
       with:
         credentials_json: ${{ secrets.GCP_SA_KEY }}
-       
+
     - uses: google-github-actions/setup-gcloud@v2
 
-    - run: gcloud components install gke-gcloud-auth-plugin 
-      
+    - run: gcloud components install gke-gcloud-auth-plugin
+
     - name: Get GKE credentials
       run: |
-        gcloud container clusters get-credentials ${{ secrets.GKE_CLUSTER_NAME }} --zone ${{ secrets.GKE_ZONE }} --project ${{ secrets.GCP_PROJECT_ID }}  # 🔁 CHANGED FROM --region
-        
+        gcloud container clusters get-credentials ${{ secrets.GKE_CLUSTER_NAME }} --zone ${{ secrets.GKE_ZONE }} --project ${{ secrets.GCP_PROJECT_ID }}
+
     - name: Health Check FastAPI
       run: |
         FASTAPI_IP=$(kubectl get service fastapi-app -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-        
+
         if [ -n "$FASTAPI_IP" ]; then
           echo "Testing FastAPI at http://$FASTAPI_IP"
           curl -f http://$FASTAPI_IP/health || echo "Health check failed"
@@ -363,23 +358,23 @@ jobs:
         else
           echo "FastAPI service IP not available yet"
         fi
-        
+
     - name: Check Prometheus Targets
       run: |
         kubectl port-forward -n monitoring svc/monitoring-kube-prometheus-prometheus 9090:9090 &
         PF_PID=$!
         sleep 10
-        
+
         curl -s http://localhost:9090/api/v1/targets | jq '.data.activeTargets[] | select(.labels.job=="fastapi-app") | .health'
-        
+
         kill $PF_PID
-        
+
     - name: Get Grafana URL
       run: |
         GRAFANA_IP=$(kubectl get service monitoring-grafana -n monitoring -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
         echo "Grafana available at: http://$GRAFANA_IP"
         echo "GRAFANA_URL=http://$GRAFANA_IP" >> $GITHUB_ENV
-        
+
     - name: Slack Notification
       if: always()
       uses: 8398a7/action-slack@v3
