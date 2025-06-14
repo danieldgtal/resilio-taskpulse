@@ -169,6 +169,13 @@ jobs:
       run: |
         gcloud container clusters get-credentials ${{ secrets.GKE_CLUSTER_NAME }} --zone ${{ secrets.GKE_ZONE }} --project ${{ secrets.GCP_PROJECT_ID }}  # 🔁 CHANGED FROM --region
 
+    - name: Create Alertmanager Slack Webhook Secret
+      run: |
+          kubectl create secret generic alertmanager-slack-webhook \
+            --from-literal=alertmanager_slack_webhook_url=${{ secrets.SLACK_WEBHOOK_URL }} \
+            --namespace monitoring \
+            --dry-run=client -o yaml | kubectl apply -f -
+
     - uses: azure/setup-helm@v3
       with:
         version: '3.12.0'
@@ -184,13 +191,78 @@ jobs:
           --set grafana.adminPassword=${{ secrets.GRAFANA_ADMIN_PASSWORD }} \
           --set grafana.service.type=LoadBalancer \
           --set alertmanager.alertmanagerSpec.storage.volumeClaimTemplate.spec.resources.requests.storage=10Gi \
+          --set alertmanager.enabled=true \ # Ensures Alertmanager is deployed and enabled
+          --set alertmanager.alertmanagerSpec.routePrefix=/ \ # Recommended for GKE LoadBalancer/Ingress setup
+          \
+          # --- Alertmanager Configuration for Slack ---
+          --set alertmanager.config.global.resolve_timeout=5m \
+          --set alertmanager.config.route.group_by='[alertname,job]' \
+          --set alertmanager.config.route.group_wait=30s \
+          --set alertmanager.config.route.group_interval=5m \
+          --set alertmanager.config.route.repeat_interval=12h \
+          --set alertmanager.config.route.receiver=slack-default \ # Default receiver for all alerts
+          --set 'alertmanager.config.route.routes[0].match.severity=critical' \
+          --set 'alertmanager.config.route.routes[0].receiver=slack-critical' \
+          --set 'alertmanager.config.route.routes[1].match.severity=warning' \
+          --set 'alertmanager.config.route.routes[1].receiver=slack-default' \
+          --set 'alertmanager.config.route.routes[2].match.severity=info' \
+          --set 'alertmanager.config.route.routes[2].receiver=slack-default' \
+          \
+          --set 'alertmanager.config.receivers[0].name=slack-default' \
+          --set 'alertmanager.config.receivers[0].slack_configs[0].channel=#alerts-general' \ # <<< IMPORTANT: CHANGE TO YOUR GENERAL SLACK CHANNEL NAME (e.g., #ops-alerts)
+          --set 'alertmanager.config.receivers[0].slack_configs[0].send_resolved=true' \
+          --set 'alertmanager.config.receivers[0].slack_configs[0].api_url=secret://alertmanager-slack-webhook/alertmanager_slack_webhook_url' \ # References the K8s Secret
+          --set 'alertmanager.config.receivers[0].slack_configs[0].title=[{{ .Status | toUpper }}] {{ .CommonLabels.alertname }}' \
+          --set 'alertmanager.config.receivers[0].slack_configs[0].text={{ range .Alerts }}*Alert:* {{ .Annotations.summary }}\n*Description:* {{ .Annotations.description }}\n*Severity:* {{ .Labels.severity }}\n*Instance:* {{ .Labels.instance }}\n*Dashboard:* <{{ .GeneratorURL }}|Prometheus Link>\n{{ end }}' \
+          \
+          --set 'alertmanager.config.receivers[1].name=slack-critical' \
+          --set 'alertmanager.config.receivers[1].slack_configs[0].channel=#alerts-critical' \ # <<< IMPORTANT: CHANGE TO YOUR CRITICAL SLACK CHANNEL NAME (e.g., #ops-critical)
+          --set 'alertmanager.config.receivers[1].slack_configs[0].send_resolved=true' \
+          --set 'alertmanager.config.receivers[1].slack_configs[0].api_url=secret://alertmanager-slack-webhook/alertmanager_slack_webhook_url' \ # References the K8s Secret
+          --set 'alertmanager.config.receivers[1].slack_configs[0].title=[CRITICAL] {{ .CommonLabels.alertname }}' \
+          --set 'alertmanager.config.receivers[1].slack_configs[0].text={{ range .Alerts }}*Alert:* {{ .Annotations.summary }}\n*Description:* {{ .Annotations.description }}\n*Severity:* {{ .Labels.severity }}\n*Instance:* {{ .Labels.instance }}\n*Dashboard:* <{{ .GeneratorURL }}|Prometheus Link>\n{{ end }}' \
+          # --- End Alertmanager Configuration ---
+          \
           --wait --timeout=600s
           
     - name: Verify monitoring deployment
       run: |
+        echo "--- Verifying monitoring pods readiness ---"
         kubectl get pods -n monitoring
-        kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=prometheus -n monitoring --timeout=300s
-        kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=grafana -n monitoring --timeout=300s
+        
+        # Verify Prometheus pod readiness
+        echo "Waiting for Prometheus pod to be ready..."
+        kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=prometheus -n monitoring --timeout=300s || { echo "Prometheus pod not ready!"; exit 1; }
+        
+        # Verify Grafana pod readiness
+        echo "Waiting for Grafana pod to be ready..."
+        kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=grafana -n monitoring --timeout=300s || { echo "Grafana pod not ready!"; exit 1; }
+        
+        # NEW ADDITION START
+        # Verify Alertmanager pod readiness
+        echo "Waiting for Alertmanager pod to be ready..."
+        kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=alertmanager -n monitoring --timeout=300s || { echo "Alertmanager pod not ready!"; exit 1; }
+        
+        # Verify Alertmanager API is responsive and can load configuration
+        echo "Verifying Alertmanager API responsiveness and configuration loading..."
+        # Port-forward Alertmanager's API to localhost within the CI runner
+        kubectl port-forward -n monitoring svc/monitoring-kube-prometheus-alertmanager 9093:9093 &
+        PF_PID=$! # Store the process ID of the port-forward command
+        
+        sleep 10 # Give port-forwarding a moment to establish
+        
+        # Attempt to curl Alertmanager's status endpoint; --fail ensures non-zero exit on HTTP errors
+        if curl --fail http://localhost:9093/api/v2/status; then
+          echo "Alertmanager API is responsive and basic configuration seems loaded."
+        else
+          echo "Alertmanager API check failed or configuration issue detected!"
+          kill $PF_PID # Kill the port-forward process
+          exit 1 # Fail the step
+        fi
+        
+        kill $PF_PID # Kill the port-forward process
+        echo "Alertmanager verification complete."
+        # NEW ADDITION END
 
   configure-monitoring:
     name: ⚙️ Configure Alerts & Dashboards
