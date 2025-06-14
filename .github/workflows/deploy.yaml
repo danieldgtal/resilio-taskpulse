@@ -144,13 +144,15 @@ jobs:
         helm repo update
         helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
           --namespace monitoring \
+          --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false \
           --set grafana.adminPassword=${{ secrets.GRAFANA_ADMIN_PASSWORD }} \
           --set grafana.service.type=LoadBalancer \
-          --set alertmanager.enabled=true \ # Explicitly enable Alertmanager
-          --set alertmanager.alertmanagerSpec.routePrefix=/ \ # Ensure the routePrefix is '/'
-          --set alertmanager.alertmanagerSpec.storage.volumeClaimTemplate.spec.resources.requests.storage=10Gi \ 
+          --set alertmanager.enabled=true \
+          --set alertmanager.alertmanagerSpec.routePrefix=/ \
+          --set alertmanager.alertmanagerSpec.storage.volumeClaimTemplate.spec.resources.requests.storage=10Gi \
           --values ./monitoring/alertmanager_config.yaml \
           --wait --timeout=600s
+
     - name: Create Slack Secret
       run: |
         kubectl create secret generic alertmanager-slack-webhook \
