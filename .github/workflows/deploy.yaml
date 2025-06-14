@@ -146,6 +146,9 @@ jobs:
           --namespace monitoring \
           --set grafana.adminPassword=${{ secrets.GRAFANA_ADMIN_PASSWORD }} \
           --set grafana.service.type=LoadBalancer \
+          --set alertmanager.enabled=true \ # Explicitly enable Alertmanager
+          --set alertmanager.alertmanagerSpec.routePrefix=/ \ # Ensure the routePrefix is '/'
+          --set alertmanager.alertmanagerSpec.storage.volumeClaimTemplate.spec.resources.requests.storage=10Gi \ 
           --values ./monitoring/alertmanager_config.yaml \
           --wait --timeout=600s
     - name: Create Slack Secret
