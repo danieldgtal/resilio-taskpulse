@@ -1,4 +1,4 @@
-# CI/CD Workflow for deploying [Infra, Monitoring, Application, and Post-deployment Health Check] to GKE Cluster
+# CI/CD Pipeline: Automates Entire Infra, App, Monitoring Stack. 
 name: Deploy to GKE Cluster
 
 on:
