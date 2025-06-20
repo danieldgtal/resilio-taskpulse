@@ -9,7 +9,7 @@ alertmanager:
             requests:
               storage: 10Gi
     routePrefix: / # Matches --set alertmanager.alertmanagerSpec.routePrefix=/
-  config:
+  config: |-
     global:
       resolve_timeout: 5m
     route:
