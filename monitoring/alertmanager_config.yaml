@@ -1,15 +1,16 @@
 # monitoring/alertmanager_config.yaml
 alertmanager:
-  enabled: true # Ensure Alertmanager is enabled
+  enabled: true
   alertmanagerSpec:
     storage:
       volumeClaimTemplate:
         spec:
+          storageClassName: standard # or any default in your cluster
           resources:
             requests:
               storage: 10Gi
     routePrefix: / # Matches --set alertmanager.alertmanagerSpec.routePrefix=/
-  config: |-
+  config:
     global:
       resolve_timeout: 5m
     route:
