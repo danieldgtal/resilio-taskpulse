@@ -1,11 +1,10 @@
 # monitoring/alertmanager_config.yaml
 alertmanager:
-  enabled: true
+  enabled: true # Ensure Alertmanager is enabled
   alertmanagerSpec:
     storage:
       volumeClaimTemplate:
         spec:
-          storageClassName: standard # or any default in your cluster
           resources:
             requests:
               storage: 10Gi
