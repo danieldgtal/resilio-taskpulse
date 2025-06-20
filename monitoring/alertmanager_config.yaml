@@ -31,14 +31,14 @@ alertmanager:
     receivers:
     - name: slack-default
       slack_configs:
-      - channel: "#alerts-general" # <<< REMEMBER TO CHANGE TO YOUR GENERAL SLACK CHANNEL
+      - channel: "#alerts-general" # Your Slack channel for general alerts
         send_resolved: true
         api_url: secret://alertmanager-slack-webhook/alertmanager_slack_webhook_url
         title: '[{{ .Status | toUpper }}] {{ .CommonLabels.alertname }}'
         text: '{{ range .Alerts }}*Alert:* {{ .Annotations.summary }}\n*Description:* {{ .Annotations.description }}\n*Severity:* {{ .Labels.severity }}\n*Instance:* {{ .Labels.instance }}\n*Dashboard:* <{{ .GeneratorURL }}|Prometheus Link>\n{{ end }}'
     - name: slack-critical
       slack_configs:
-      - channel: "#alerts-critical" # <<< REMEMBER TO CHANGE TO YOUR CRITICAL SLACK CHANNEL
+      - channel: "#alerts-critical" # <<< Your Slack channel for critical alerts
         send_resolved: true
         api_url: secret://alertmanager-slack-webhook/alertmanager_slack_webhook_url
         title: '[CRITICAL] {{ .CommonLabels.alertname }}'
