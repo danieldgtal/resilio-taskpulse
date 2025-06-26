@@ -142,6 +142,13 @@ jobs:
       run: |
         helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
         helm repo update
+        
+        # Create AlertManager config as a secret first
+        kubectl create secret generic alertmanager-main \
+          --from-file=alertmanager.yml=./monitoring/alertmanager_config.yaml \
+          --namespace monitoring \
+          --dry-run=client -o yaml | kubectl apply -f -
+        
         helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
           --namespace monitoring \
           --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false \
@@ -150,7 +157,8 @@ jobs:
           --set alertmanager.enabled=true \
           --set alertmanager.alertmanagerSpec.routePrefix=/ \
           --set alertmanager.alertmanagerSpec.storage.volumeClaimTemplate.spec.resources.requests.storage=10Gi \
-          --values ./monitoring/alertmanager_config.yaml \
+          --set alertmanager.config.useExistingSecret=true \
+          --set alertmanager.config.existingSecretKey=alertmanager.yml \
           --wait --timeout=600s
 
     - name: Create Slack Secret
@@ -171,9 +179,13 @@ jobs:
         echo "Waiting for Grafana pod to be ready..."
         kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=grafana -n monitoring --timeout=300s || { echo "Grafana pod not ready!"; exit 1; }
         
-        # Verify Alertmanager pod readiness
+        # Verify Alertmanager pod readiness - FIXED SELECTOR
         echo "Waiting for Alertmanager pod to be ready..."
-        kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=alertmanager -n monitoring --timeout=300s || { echo "Alertmanager pod not ready!"; exit 1; }
+        kubectl wait --for=condition=ready pod -l alertmanager=monitoring-kube-prometheus-alertmanager -n monitoring --timeout=300s || { echo "Alertmanager pod not ready!"; exit 1; }
+        
+        # Alternative approach - wait for StatefulSet to be ready
+        echo "Verifying Alertmanager StatefulSet is ready..."
+        kubectl wait --for=condition=ready statefulset/alertmanager-monitoring-kube-prometheus-alertmanager -n monitoring --timeout=300s || { echo "Alertmanager StatefulSet not ready!"; exit 1; }
         
         # Verify Alertmanager API is responsive and can load configuration
         echo "Verifying Alertmanager API responsiveness and configuration loading..."
