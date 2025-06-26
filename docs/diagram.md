@@ -81,9 +81,10 @@ The TaskPulse microservice follows a modern cloud-native architecture deployed o
 
 ### Application Layer
 - **TaskPulse API Pods**: Python microservice running on port 8000
-- **Docker Images**: Stored in Google Container Registry (GCR)
+- **Docker Images**: Stored in Google Artifact Registry.
 - **Load Balancer**: GKE external IP service on port 80
 - **Metrics Endpoint**: `/metrics` for Prometheus monitoring
+- **Probe Endpoint**: '/healtz' for application probe check. 
 
 ### Data Layer
 - **Cloud SQL**: Managed PostgreSQL database service
