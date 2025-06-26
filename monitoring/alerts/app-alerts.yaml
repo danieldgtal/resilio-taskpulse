@@ -91,3 +91,14 @@ spec:
           annotations:
             summary: "Unexpected client error rate on FastAPI ({{ $labels.instance }})"
             description: "More than 10% of requests are returning 4xx client errors on instance {{ $labels.instance }}. Investigate client behavior or API usage."
+
+            # Add this to your app-alerts PrometheusRule
+        - alert: PodRestarted
+          annotations:
+            description: Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} has just restarted.
+            summary: FastAPI pod restarted ({{ $labels.pod }})
+          expr: increase(kube_pod_container_status_restarts_total{container="fastapi-app", namespace="default"}[5m]) > 0
+          for: 0s  # Immediate alert
+          labels:
+            app: fastapi-app
+            severity: critical
