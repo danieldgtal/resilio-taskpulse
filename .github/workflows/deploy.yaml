@@ -135,20 +135,28 @@ jobs:
     - uses: azure/setup-helm@v3
       with:
         version: '3.12.0'
+
     - name: Create Monitoring Namespace
       run: |
         kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
+
+    - name: Create Slack Secret
+      run: |
+        kubectl create secret generic slack-webhook \
+          --from-literal=url=${{ secrets.SLACK_WEBHOOK_URL }} \
+          --namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
+
+    - name: Create AlertManager Config Secret
+      run: |
+        kubectl create secret generic alertmanager-main \
+          --from-file=alertmanager.yml=./monitoring/alertmanager.yml \
+          --namespace monitoring \
+          --dry-run=client -o yaml | kubectl apply -f -
+
     - name: Deploy Prometheus Stack
       run: |
         helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
         helm repo update
-        
-        # Create AlertManager config as a secret first
-        kubectl create secret generic alertmanager-main \
-          --from-file=alertmanager.yml=./monitoring/alertmanager_config.yaml \
-          --namespace monitoring \
-          --dry-run=client -o yaml | kubectl apply -f -
-        
         helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
           --namespace monitoring \
           --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false \
@@ -157,17 +165,64 @@ jobs:
           --set alertmanager.enabled=true \
           --set alertmanager.alertmanagerSpec.routePrefix=/ \
           --set alertmanager.alertmanagerSpec.storage.volumeClaimTemplate.spec.resources.requests.storage=10Gi \
+          --set alertmanager.alertmanagerSpec.secrets[0]=slack-webhook \
           --set alertmanager.config.useExistingSecret=true \
           --set alertmanager.config.existingSecretKey=alertmanager.yml \
           --wait --timeout=600s
 
-    - name: Create Slack Secret
-      run: |
-        kubectl create secret generic alertmanager-slack-webhook \
-          --from-literal=alertmanager_slack_webhook_url=${{ secrets.SLACK_WEBHOOK_URL }} \
-          --namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
     - name: Verify monitoring deployment
       run: |
+        echo "--- Verifying monitoring pods readiness ---"
+        kubectl get pods -n monitoring
+
+        echo "--- Debug: Check StatefulSets ---"
+        kubectl get statefulsets -n monitoring
+
+        echo "--- Debug: Check AlertManager service ---"
+        kubectl get svc -n monitoring | grep alertmanager || echo "No alertmanager service found"
+
+        # Verify Prometheus pod readiness
+        echo "Waiting for Prometheus pod to be ready..."
+        kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=prometheus -n monitoring --timeout=300s || { echo "Prometheus pod not ready!"; exit 1; }
+        
+        # Verify Grafana pod readiness
+        echo "Waiting for Grafana pod to be ready..."
+        kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=grafana -n monitoring --timeout=300s || { echo "Grafana pod not ready!"; exit 1; }
+        
+        # Check if AlertManager StatefulSet exists first
+        if kubectl get statefulset alertmanager-monitoring-kube-prometheus-alertmanager -n monitoring >/dev/null 2>&1; then
+          echo "Waiting for Alertmanager StatefulSet to be ready..."
+          kubectl wait --for=condition=ready statefulset/alertmanager-monitoring-kube-prometheus-alertmanager -n monitoring --timeout=300s || { echo "Alertmanager StatefulSet not ready!"; exit 1; }
+          
+          echo "Waiting for Alertmanager pod to be ready..."
+          kubectl wait --for=condition=ready pod -l alertmanager=monitoring-kube-prometheus-alertmanager -n monitoring --timeout=300s || { echo "Alertmanager pod not ready!"; exit 1; }
+        else
+          echo "AlertManager StatefulSet not found! Checking Helm values..."
+          helm get values monitoring -n monitoring
+          exit 1
+        fi
+        
+        # Verify Alertmanager API is responsive
+        echo "Verifying Alertmanager API responsiveness..."
+        kubectl port-forward -n monitoring svc/monitoring-kube-prometheus-alertmanager 9093:9093 &
+        PF_PID=$!
+        
+        sleep 15 # Give port-forwarding time to establish
+        
+        if curl --fail --max-time 10 http://localhost:9093/api/v2/status; then
+          echo "Alertmanager API is responsive."
+        else
+          echo "Alertmanager API check failed!"
+          kill $PF_PID
+          exit 1
+        fi
+        
+        kill $PF_PID
+        echo "Alertmanager verification complete."
+      
+    - name: Verify monitoring deployment
+      run: |
+
         echo "--- Verifying monitoring pods readiness ---"
         kubectl get pods -n monitoring
 
