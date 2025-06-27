@@ -1,7 +1,5 @@
 global:
   resolve_timeout: 5m
-  slack_api_url: 'https://hooks.slack.com/services/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'
-
 
 route:
   group_by: ['alertname', 'job']
@@ -25,6 +23,7 @@ receivers:
   slack_configs:
   - channel: "#alerts-general"
     send_resolved: true
+    api_url: '{{ template "slack_webhook_url" . }}'
     title: '[{{ .Status | toUpper }}] {{ .CommonLabels.alertname }}'
     text: '{{ range .Alerts }}*Alert:* {{ .Annotations.summary }}\n*Description:* {{ .Annotations.description }}\n*Severity:* {{ .Labels.severity }}\n*Instance:* {{ .Labels.instance }}\n*Dashboard:* <{{ .GeneratorURL }}|Prometheus Link>\n{{ end }}'
 
@@ -32,5 +31,9 @@ receivers:
   slack_configs:
   - channel: "#alerts-critical"
     send_resolved: true
+    api_url: '{{ template "slack_webhook_url" . }}'
     title: '[CRITICAL] {{ .CommonLabels.alertname }}'
     text: '{{ range .Alerts }}*Alert:* {{ .Annotations.summary }}\n*Description:* {{ .Annotations.description }}\n*Severity:* {{ .Labels.severity }}\n*Instance:* {{ .Labels.instance }}\n*Dashboard:* <{{ .GeneratorURL }}|Prometheus Link>\n{{ end }}'
+
+templates:
+  - '/etc/alertmanager/config/slack-url.tmpl'
