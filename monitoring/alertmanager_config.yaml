@@ -1,5 +1,6 @@
 global:
   resolve_timeout: 5m
+  # Remove slack_api_url from global - we'll set it per receiver
 
 route:
   group_by: ['alertname', 'job']
@@ -23,17 +24,31 @@ receivers:
   slack_configs:
   - channel: "#alerts-general"
     send_resolved: true
-    api_url: '{{ template "slack_webhook_url" . }}'
+    # Use environment variable directly - this will be injected by Kubernetes
+    api_url: "${SLACK_WEBHOOK_URL}"
     title: '[{{ .Status | toUpper }}] {{ .CommonLabels.alertname }}'
-    text: '{{ range .Alerts }}*Alert:* {{ .Annotations.summary }}\n*Description:* {{ .Annotations.description }}\n*Severity:* {{ .Labels.severity }}\n*Instance:* {{ .Labels.instance }}\n*Dashboard:* <{{ .GeneratorURL }}|Prometheus Link>\n{{ end }}'
+    text: |
+      {{ range .Alerts }}
+      *Alert:* {{ .Annotations.summary }}
+      *Description:* {{ .Annotations.description }}
+      *Severity:* {{ .Labels.severity }}
+      *Instance:* {{ .Labels.instance }}
+      *Dashboard:* <{{ .GeneratorURL }}|Prometheus Link>
+      {{ end }}
 
 - name: slack-critical
   slack_configs:
   - channel: "#alerts-critical"
     send_resolved: true
-    api_url: '{{ template "slack_webhook_url" . }}'
+    api_url: "${SLACK_WEBHOOK_URL}"
     title: '[CRITICAL] {{ .CommonLabels.alertname }}'
-    text: '{{ range .Alerts }}*Alert:* {{ .Annotations.summary }}\n*Description:* {{ .Annotations.description }}\n*Severity:* {{ .Labels.severity }}\n*Instance:* {{ .Labels.instance }}\n*Dashboard:* <{{ .GeneratorURL }}|Prometheus Link>\n{{ end }}'
+    text: |
+      {{ range .Alerts }}
+      *Alert:* {{ .Annotations.summary }}
+      *Description:* {{ .Annotations.description }}
+      *Severity:* {{ .Labels.severity }}
+      *Instance:* {{ .Labels.instance }}
+      *Dashboard:* <{{ .GeneratorURL }}|Prometheus Link>
+      {{ end }}
 
-templates:
-  - '/etc/alertmanager/config/slack-url.tmpl'
+# Remove the templates section since we're not using the template file anymore
