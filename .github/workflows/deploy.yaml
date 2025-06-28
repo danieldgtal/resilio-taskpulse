@@ -138,6 +138,12 @@ jobs:
     - name: Create Monitoring Namespace
       run: |
         kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
+    
+    - name: Create Slack Secret
+      run: |
+        kubectl create secret generic alertmanager-slack-webhook \
+          --from-literal=alertmanager_slack_webhook_url=${{ secrets.SLACK_WEBHOOK_URL }} \
+          --namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
 
     - name: Deploy Prometheus Stack
       run: |
@@ -152,18 +158,12 @@ jobs:
           --set alertmanager.alertmanagerSpec.routePrefix=/ \
           --set alertmanager.alertmanagerSpec.storage.volumeClaimTemplate.spec.resources.requests.storage=10Gi \
           --set alertmanager.configMapOverrideName=alertmanager-config \
-          --set alertmanager.templateFiles.slack-url.tmpl="$(< ./monitoring/slack-url.tmpl)" \
           --set alertmanager.extraEnvVars[0].name=SLACK_WEBHOOK_URL \
           --set alertmanager.extraEnvVars[0].valueFrom.secretKeyRef.name=alertmanager-slack-webhook \
           --set alertmanager.extraEnvVars[0].valueFrom.secretKeyRef.key=alertmanager_slack_webhook_url \
           --values ./monitoring/alertmanager_config.yaml \
           --wait --timeout=600s
 
-    - name: Create Slack Secret
-      run: |
-        kubectl create secret generic alertmanager-slack-webhook \
-          --from-literal=alertmanager_slack_webhook_url=${{ secrets.SLACK_WEBHOOK_URL }} \
-          --namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
     - name: Verify monitoring deployment
       run: |
         echo "--- Verifying monitoring pods readiness ---"
